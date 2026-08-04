@@ -766,7 +766,7 @@ export default function CentralPedidosScreen({
             <div className="flex items-center gap-2">
               <Button
                 type="button"
-                variant="secondary"
+                variant="primary"
                 className="!min-h-[36px] sm:!min-h-[38px] !px-2.5 !py-1.5 !text-[11px]"
                 onClick={() => setShowQrAtendimento(true)}
                 title="Gerar QR para o atendente abrir o Atendimento Mobile (comanda/mesas) no celular"
