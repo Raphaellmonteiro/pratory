@@ -631,6 +631,60 @@ export const authDeliveryCliente = (req: any, res: any, next: any) => {
   } catch { return res.status(403).json({ error: 'Token de cliente inválido' }); }
 };
 
+// ── QR temporário do garçom (abrir mesa + lançar pedidos, sem login pessoal) ──
+// Gerado sob demanda em Mesas → "Gerar QR Garçom" por quem já está autenticado
+// normalmente (dono/gerente). Token stateless, expira sozinho — nada gravado no banco.
+const GARCOM_TEMP_TOKEN_TTL = '3h';
+
+export function signGarcomTempToken(tenantId: number | string) {
+  return jwt.sign({ tipo: 'garcom_temp', tenantId }, JWT_SECRET, { expiresIn: GARCOM_TEMP_TOKEN_TTL });
+}
+
+/**
+ * Aceita tanto o JWT normal de sessão quanto o QR temporário do garçom.
+ * Quando é QR temporário, monta uma sessão sintética com escopo mínimo
+ * (apenas o módulo "mesas") — a restrição fina de rota fica a cargo de
+ * `restrictGarcomTempScope`, aplicado só no router de mesas.
+ */
+export const authenticateTokenOrGarcomTemp = async (req: Request, res: Response, next: NextFunction) => {
+  const token = extractBearerToken(req);
+  if (token) {
+    try {
+      const dec: any = jwt.verify(token, JWT_SECRET);
+      if (dec?.tipo === 'garcom_temp' && dec?.tenantId) {
+        req.tenantId = dec.tenantId;
+        req.user = { id: 0, username: 'garcom_temp', role: 'garcom_temp' } as any;
+        req.userCargo = 'garcom_temp';
+        req.userPermissoes = ['mesas'];
+        (req as any).isGarcomTemp = true;
+        return next();
+      }
+    } catch {
+      // Não é (ou não é mais) um QR de garçom válido — segue para a sessão normal abaixo.
+    }
+  }
+  return authenticateToken(req, res, next);
+};
+
+/**
+ * Aplicado só nas rotas de /mesas: quando a sessão veio do QR temporário do
+ * garçom, permite apenas listar mesas, ver comanda, abrir mesa e lançar
+ * itens — nunca fechar mesa, finalizar pagamento ou reconfigurar mesas.
+ */
+export function restrictGarcomTempScope(req: Request, res: Response, next: NextFunction) {
+  if (!(req as any).isGarcomTemp) return next();
+
+  const allowed =
+    (req.method === 'GET' && (req.path === '/' || req.path === '/produtos-garcom' || /^\/[^/]+\/comanda$/.test(req.path))) ||
+    (req.method === 'PUT' && /^\/[^/]+\/abrir$/.test(req.path)) ||
+    (req.method === 'POST' && /^\/[^/]+\/comanda\/adicionar$/.test(req.path));
+
+  if (!allowed) {
+    return res.status(403).json({ error: 'QR temporário do garçom não permite esta ação.' });
+  }
+  return next();
+}
+
 /** JWT de cliente delivery quando enviado; se o header existir e for inválido, responde 403. Pedidos sem vínculo de cliente não exigem token na rota que usar isto. */
 export const optionalAuthDeliveryCliente = (req: any, res: any, next: any) => {
   const token = extractBearerToken(req);

@@ -24,6 +24,7 @@ import { playNewOrderSound } from './utils/sound';
 
 // ── Telas críticas no primeiro paint (login + PDV padrão) ────────
 import LoginScreen           from './shared/LoginScreen';
+import MenuHubScreen, { DEFAULT_ICONS } from './shared/MenuHubScreen';
 import POSScreen             from './shared/POSScreen';
 import LicenseBlockedScreen  from './shared/LicenseBlockedScreen';
 import LegalAcceptanceGate   from './shared/legal/LegalAcceptanceGate';
@@ -55,6 +56,7 @@ const MesasScreen           = lazy(() => import('./segments/bar/MesasScreen'));
 const PrivacyPolicyPublicPage = lazy(() => import('./shared/legal/PrivacyPolicyPublicPage'));
 const TermsOfUsePublicPage  = lazy(() => import('./shared/legal/TermsOfUsePublicPage'));
 const AtendimentoMobileScreen = lazy(() => import('./segments/atendimento/AtendimentoMobileScreen'));
+const GarcomMobileScreen = lazy(() => import('./segments/bar/GarcomMobileScreen'));
 
 import { Button }            from './components/ui/Card';
 import { Input }             from './components/ui/Card';
@@ -165,6 +167,9 @@ export default function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [estabelecimentoSegmento, setEstabelecimentoSegmento] = useState('Restaurante/Food');
   const [activeTab, setActiveTab] = useState<'pos' | 'dashboard' | 'products' | 'orders' | 'central' | 'finance' | 'estoque' | 'mesas' | 'funcionarios' | 'configuracoes' | 'logs' | 'delivery' | 'clientes' | 'whatsapp-ia'>('pos')
+  // Tela de menu inicial exibida logo após o login (antes de cair direto no PDV).
+  // Reaberta manualmente pelo botão "Menu" na sidebar.
+  const [showMenuHub, setShowMenuHub] = useState<boolean>(true)
   const [floatPos, setFloatPos]   = React.useState(() => {
     const saved = localStorage.getItem('orders_float_pos');
     return saved ? JSON.parse(saved) : { x: window.innerWidth - 80, y: window.innerHeight - 120 };
@@ -351,6 +356,9 @@ export default function App() {
   const isAdmin = path.startsWith('/admin');
   const atendimentoMobileMatch = path.match(/^\/m\/atendimento\/?$/);
   const isAtendimentoMobile = Boolean(atendimentoMobileMatch);
+  const garcomMobileMatch = path.match(/^\/m\/garcom\/([^/]+)\/?$/);
+  const isGarcomMobile = Boolean(garcomMobileMatch);
+  const garcomQrToken = garcomMobileMatch ? decodeURIComponent(garcomMobileMatch[1]) : null;
   const bookingMatch = path.match(/^\/agendar\/(.+)$/);
   const bookingSlug  = bookingMatch ? bookingMatch[1] : null;
   const kdsMatch     = path.match(/^\/kds\/(.+)$/);
@@ -853,6 +861,17 @@ const handleAuth = async (e: React.FormEvent) => {
       </Suspense>
     );
   }
+
+  // QR temporário do garçom: acesso público, sem login pessoal — a validade
+  // do token (3h) é conferida pelo próprio back-end a cada chamada.
+  if (isGarcomMobile && garcomQrToken) {
+    return (
+      <Suspense fallback={<PublicRouteFallback />}>
+        <GarcomMobileScreen qrToken={garcomQrToken} />
+      </Suspense>
+    );
+  }
+
   if (licenseError) return <LicenseBlockedScreen type={licenseError} onBack={() => { setLicenseError(null); handleLogout(); }} />;
 
   if (!token) {
@@ -863,6 +882,7 @@ const handleAuth = async (e: React.FormEvent) => {
               setToken(t);
               localStorage.setItem('token', t);
               setLegalGateResolved(false);
+              setShowMenuHub(true);
               try { setSlugAtual((JSON.parse(atob(t.split('.')[1])) as any).username || ''); } catch {}
             }} 
           onShowSolicitacao={() => setShowSolicitacao(true)}
@@ -900,6 +920,43 @@ const handleAuth = async (e: React.FormEvent) => {
       <Suspense fallback={<PublicRouteFallback />}>
         <AtendimentoMobileScreen token={token} />
       </Suspense>
+    );
+  }
+
+  if (showMenuHub) {
+    const hubItemDefs: { tab: string; label: string; description: string; requires?: boolean }[] = [
+      { tab: 'pos',            label: segCfg.labelSidebarPOS,      description: 'Abrir o ponto de venda e realizar pedidos' },
+      { tab: 'delivery',       label: 'Delivery',                  description: 'Gerenciar pedidos de delivery',            requires: permiteDelivery },
+      { tab: 'mesas',          label: 'Mesas',                     description: 'Gerenciar mesas e comandas',                requires: permiteMesas },
+      { tab: 'orders',         label: 'Pedidos',                   description: 'Acompanhar todos os pedidos' },
+      { tab: 'products',       label: segCfg.labelSidebarProdutos, description: 'Gerenciar produtos, categorias e opções' },
+      { tab: 'clientes',       label: 'Clientes',                  description: 'Gerenciar clientes e cadastros',            requires: permiteDelivery },
+      { tab: 'dashboard',      label: 'Dashboard',                 description: 'Visualizar indicadores do negócio' },
+      { tab: 'finance',        label: 'Financeiro',                description: 'Controle financeiro e caixa' },
+      { tab: 'configuracoes',  label: 'Configurações',             description: 'Configurar o sistema e preferências' },
+    ];
+
+    const hubItems = hubItemDefs
+      .filter((item) => item.requires !== false && canAccess(item.tab))
+      .map((item) => ({
+        tab: item.tab,
+        label: item.label,
+        description: item.description,
+        icon: DEFAULT_ICONS[item.tab] ?? DEFAULT_ICONS.pos,
+      }));
+
+    return (
+      <MenuHubScreen
+        userName={estabelecimentoNome}
+        userRoleLabel={userRoleLabel}
+        items={hubItems}
+        onSelect={(tab) => {
+          handleTabChange(tab);
+          setShowMenuHub(false);
+        }}
+        onLogout={handleLogout}
+        supportPhone="5582996490367"
+      />
     );
   }
 
@@ -1030,6 +1087,7 @@ const handleAuth = async (e: React.FormEvent) => {
 
      <nav className="flex-1 min-h-0 space-y-1.5 overflow-y-auto p-2.5 lg:p-2.5 lg:space-y-1 xl:p-3 xl:space-y-1.5">
           {(() => { return (<> 
+            <NavItem active={false} onClick={() => setShowMenuHub(true)} icon="🏠" label="Menu" />
             {canAccess('pos')    && <NavItem active={activeTab === 'pos'}    onClick={() => handleTabChange('pos')}    icon="🛒" label={segCfg.labelSidebarPOS} />}
             {canAccess('orders') && (
               <>

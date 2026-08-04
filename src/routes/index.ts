@@ -3,6 +3,9 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { q1, qAll, qInsert, qRun } from '../db';
 import {
   authenticateToken,
+  authenticateTokenOrGarcomTemp,
+  restrictGarcomTempScope,
+  signGarcomTempToken,
   extractBearerToken,
   JWT_SECRET,
   publicRateLimit,
@@ -202,7 +205,6 @@ export function createApiRouter() {
   protectedRouter.use('/usuarios', requirePlanFeature('funcionarios'), requireAnyPermission('funcionarios'), createUsuariosRouter());
   protectedRouter.use('/funcionarios', requirePlanFeature('funcionarios'), requireAnyPermission('funcionarios'), createRhRouter());
   protectedRouter.use('/funcionarios', requirePlanFeature('funcionarios'), requireAnyPermission('funcionarios'), createAcessoFuncRouter());
-  protectedRouter.use('/mesas', requirePlanFeature('mesas'), requireAnyPermission('mesas'), createMesasRouter());
   protectedRouter.use('/pontos', requirePlanFeature('funcionarios'), requireAnyPermission('funcionarios'), createPontosRouter());
 
   // ── Gerador de tokens para telas operacionais (KDS / Ponto) ─────────────
@@ -233,6 +235,18 @@ export function createApiRouter() {
       sendInternalError(res, 'GET /kiosk-token', e);
     }
   });
+
+  // /mesas usa um middleware de auth próprio (aceita sessão normal OU o QR
+  // temporário do garçom), por isso fica fora do protectedRouter — que exige
+  // sempre o JWT completo de sessão.
+  router.use(
+    '/mesas',
+    authenticateTokenOrGarcomTemp,
+    restrictGarcomTempScope,
+    requirePlanFeature('mesas'),
+    requireAnyPermission('mesas'),
+    createMesasRouter()
+  );
 
   router.use(protectedRouter);
 

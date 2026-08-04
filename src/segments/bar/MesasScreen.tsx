@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   TableProperties,
   Settings,
+  QrCode,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import MesaCard from './MesaCard';
@@ -17,6 +18,10 @@ export default function MesasScreen({ token, taxasPagamento }: { token: string; 
   const [showConfig, setShowConfig] = useState(false);
   const [qtdInput, setQtdInput] = useState('');
   const [configLoading, setConfigLoading] = useState(false);
+  const [showQrGarcom, setShowQrGarcom] = useState(false);
+  const [qrGarcomUrl, setQrGarcomUrl] = useState<string | null>(null);
+  const [qrGarcomExpiresAt, setQrGarcomExpiresAt] = useState<number | null>(null);
+  const [qrGarcomLoading, setQrGarcomLoading] = useState(false);
 
   const fetchMesas = useCallback(async () => {
     try {
@@ -64,6 +69,26 @@ export default function MesasScreen({ token, taxasPagamento }: { token: string; 
     }
   };
 
+  const handleGerarQrGarcom = useCallback(async () => {
+    setShowQrGarcom(true);
+    setQrGarcomLoading(true);
+    try {
+      const res = await fetch('/api/mesas/gerar-qr-garcom', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data?.success) {
+        setQrGarcomUrl(data.url);
+        setQrGarcomExpiresAt(Date.now() + (data.expires_in_minutes || 180) * 60 * 1000);
+      }
+    } catch {
+      setQrGarcomUrl(null);
+    } finally {
+      setQrGarcomLoading(false);
+    }
+  }, [token]);
+
   const abertas = mesas.filter(m => m.status === 'aberta').length;
   const fechadas = mesas.filter(m => m.status === 'fechada').length;
   const total = mesas.length;
@@ -80,13 +105,22 @@ export default function MesasScreen({ token, taxasPagamento }: { token: string; 
       <div className="p-5 border-b border-zinc-200 flex-shrink-0">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <h1 className="text-xl font-black text-zinc-900">Mesas</h1>
-          <button
-            onClick={() => { setQtdInput(String(mesas.length)); setShowConfig(true); }}
-            className="flex items-center gap-2 px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg font-semibold text-sm transition-all active:scale-95"
-          >
-            <Settings size={14} />
-            Configurar
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleGerarQrGarcom}
+              className="flex items-center gap-2 px-3 py-2 bg-[#EA1D2C] hover:bg-[#C9101E] text-white rounded-lg font-semibold text-sm transition-all active:scale-95"
+            >
+              <QrCode size={14} />
+              Gerar QR Garçom
+            </button>
+            <button
+              onClick={() => { setQtdInput(String(mesas.length)); setShowConfig(true); }}
+              className="flex items-center gap-2 px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg font-semibold text-sm transition-all active:scale-95"
+            >
+              <Settings size={14} />
+              Configurar
+            </button>
+          </div>
         </div>
         {total > 0 && (
           <div className="flex flex-wrap gap-3 mt-4">
@@ -191,6 +225,63 @@ export default function MesasScreen({ token, taxasPagamento }: { token: string; 
                   {configLoading ? 'Salvando...' : 'Salvar'}
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de QR do Garçom */}
+      <AnimatePresence>
+        {showQrGarcom && (
+          <div
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[200] flex items-center justify-center p-4"
+            onClick={() => setShowQrGarcom(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-8 flex flex-col items-center text-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-xl font-black text-zinc-900 mb-1">QR do Garçom</h3>
+              <p className="text-sm text-zinc-500 mb-5">
+                Peça para o garçom escanear com o celular. Ele poderá abrir mesas e lançar
+                pedidos direto, sem precisar de login. Válido por 3 horas.
+              </p>
+
+              {qrGarcomLoading ? (
+                <div className="py-10"><Spinner className="h-10 w-10" /></div>
+              ) : qrGarcomUrl ? (
+                <>
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrGarcomUrl)}&bgcolor=ffffff&color=000000&margin=8`}
+                    alt="QR Garçom"
+                    className="w-[220px] h-[220px] rounded-2xl border border-zinc-100"
+                  />
+                  {qrGarcomExpiresAt && (
+                    <p className="text-[11px] text-zinc-400 mt-3">
+                      Expira às {new Date(qrGarcomExpiresAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleGerarQrGarcom}
+                    className="mt-4 text-xs font-semibold text-[#EA1D2C] hover:underline"
+                  >
+                    Gerar novo QR
+                  </button>
+                </>
+              ) : (
+                <p className="text-sm text-red-500 py-6">Não foi possível gerar o QR. Tente novamente.</p>
+              )}
+
+              <button
+                onClick={() => setShowQrGarcom(false)}
+                className="mt-6 w-full px-4 py-3 bg-zinc-100 hover:bg-zinc-200 rounded-xl font-semibold text-sm transition-all"
+              >
+                Fechar
+              </button>
             </motion.div>
           </div>
         )}

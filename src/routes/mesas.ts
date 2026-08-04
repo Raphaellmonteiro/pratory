@@ -22,6 +22,7 @@ import { runAutomatedKitchenPrintForMesa } from '../services/operationalAutomati
 import { tenantHasInventoryFeature } from '../services/tenantPlan';
 import { notifyTenantOrderStreams } from '../sse';
 import { coerceDeliveryConfigRow } from '../utils/deliveryConfigPersist';
+import { signGarcomTempToken } from '../middleware';
 
 const TZ = 'America/Sao_Paulo';
 
@@ -384,6 +385,49 @@ export function createMesasRouter() {
           total_valor: totals.total
         };
       }));
+    } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
+  });
+
+  // POST /api/mesas/gerar-qr-garcom — gera um QR temporário (3h) para o garçom
+  // abrir mesas e lançar pedidos pelo celular, sem precisar de login pessoal.
+  // Só quem já está autenticado normalmente (dono/gerente com acesso a "mesas")
+  // pode gerar; o token resultante tem escopo restrito (ver restrictGarcomTempScope).
+  router.post('/gerar-qr-garcom', async (req: Request, res) => {
+    try {
+      if ((req as any).isGarcomTemp) {
+        return res.status(403).json({ error: 'Sessão de garçom não pode gerar novo QR.' });
+      }
+      const token = signGarcomTempToken(req.tenantId as number);
+      const baseUrl = String(req.body?.base_url || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+      res.json({
+        success: true,
+        token,
+        url: `${baseUrl}/m/garcom/${token}`,
+        expires_in_minutes: 180,
+      });
+    } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
+  });
+
+  // GET /api/mesas/produtos-garcom?q=... — busca de produtos para o garçom
+  // adicionar itens à comanda pelo QR temporário (mesmo formato usado em
+  // /api/atendimento/produtos, restrito ao essencial para o cardápio rápido).
+  router.get('/produtos-garcom', async (req: Request, res) => {
+    try {
+      const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+      if (q.length < 2) return res.json([]);
+
+      const term = `%${q}%`;
+      const rows = await qAll(
+        `SELECT id, name, price, category, COALESCE(is_combo,0) AS is_combo
+         FROM produtos
+         WHERE tenant_id=?
+           AND COALESCE(active,0)=1
+           AND (name ILIKE ? OR category ILIKE ?)
+         ORDER BY name ASC
+         LIMIT 30`,
+        [req.tenantId, term, term]
+      );
+      res.json(rows);
     } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
   });
 
