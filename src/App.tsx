@@ -55,7 +55,7 @@ const ClienteMesaScreen     = lazy(() => import('./segments/restaurante/ClienteM
 const MesasScreen           = lazy(() => import('./segments/bar/MesasScreen'));
 const PrivacyPolicyPublicPage = lazy(() => import('./shared/legal/PrivacyPolicyPublicPage'));
 const TermsOfUsePublicPage  = lazy(() => import('./shared/legal/TermsOfUsePublicPage'));
-const AtendimentoMobileScreen = lazy(() => import('./segments/atendimento/AtendimentoMobileScreen'));
+const AtendimentoMobileHub = lazy(() => import('./segments/atendimento/AtendimentoMobileHub'));
 const GarcomMobileScreen = lazy(() => import('./segments/bar/GarcomMobileScreen'));
 
 import { Button }            from './components/ui/Card';
@@ -918,7 +918,7 @@ const handleAuth = async (e: React.FormEvent) => {
   if (isAtendimentoMobile) {
     return (
       <Suspense fallback={<PublicRouteFallback />}>
-        <AtendimentoMobileScreen token={token} />
+        <AtendimentoMobileHub token={token} />
       </Suspense>
     );
   }
@@ -955,7 +955,7 @@ const handleAuth = async (e: React.FormEvent) => {
           setShowMenuHub(false);
         }}
         onLogout={handleLogout}
-        supportPhone="5582981831172"
+        supportPhone="5582996490367"
       />
     );
   }

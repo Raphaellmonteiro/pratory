@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { Search, Plus, Minus, ArrowLeft, AlertCircle, Loader2 } from 'lucide-react';
+import { Search, Plus, Minus, ArrowLeft, AlertCircle, Loader2, Trash2 } from 'lucide-react';
 
 type Mesa = {
   id: number;
@@ -50,9 +50,11 @@ export default function GarcomMobileScreen({ qrToken }: { qrToken: string }) {
   const [abrindo, setAbrindo] = React.useState(false);
 
   const [qProduto, setQProduto] = React.useState('');
-  const [produtos, setProdutos] = React.useState<ProdutoHit[]>([]);
-  const [buscando, setBuscando] = React.useState(false);
+  const [catalogo, setCatalogo] = React.useState<ProdutoHit[]>([]);
+  const [catalogoCarregando, setCatalogoCarregando] = React.useState(false);
+  const [categoriaAtiva, setCategoriaAtiva] = React.useState('Todas');
   const [adicionando, setAdicionando] = React.useState<number | null>(null);
+  const [removendo, setRemovendo] = React.useState<number | null>(null);
   const [qty, setQty] = React.useState<Record<number, number>>({});
 
   const fetchMesas = React.useCallback(async () => {
@@ -104,28 +106,57 @@ export default function GarcomMobileScreen({ qrToken }: { qrToken: string }) {
   const handleClickMesa = async (mesa: Mesa) => {
     setSelectedMesa(mesa);
     setQProduto('');
-    setProdutos([]);
+    setCategoriaAtiva('Todas');
     if (mesa.status === 'aberta') await fetchComanda(mesa);
   };
 
+  // Catálogo completo é buscado uma vez ao abrir a mesa (e reaproveitado);
+  // filtro por categoria e por texto acontece no celular, sem round-trip.
   React.useEffect(() => {
-    const q = qProduto.trim();
-    if (q.length < 2) { setProdutos([]); return; }
-    const t = setTimeout(async () => {
-      setBuscando(true);
+    if (!selectedMesa || selectedMesa.status !== 'aberta') return;
+    let cancelled = false;
+    (async () => {
+      setCatalogoCarregando(true);
       try {
-        const res = await fetch(`/api/mesas/produtos-garcom?q=${encodeURIComponent(q)}`, { headers });
+        const res = await fetch('/api/mesas/produtos-garcom', { headers });
         if (res.status === 401 || res.status === 403) { setExpired(true); return; }
         const data = await res.json();
-        setProdutos(Array.isArray(data) ? data : []);
+        if (!cancelled) setCatalogo(Array.isArray(data) ? data : []);
       } catch {
-        setProdutos([]);
+        if (!cancelled) setCatalogo([]);
       } finally {
-        setBuscando(false);
+        if (!cancelled) setCatalogoCarregando(false);
       }
-    }, 300);
-    return () => clearTimeout(t);
-  }, [qProduto, headers]);
+    })();
+    return () => { cancelled = true; };
+  }, [selectedMesa?.id, selectedMesa?.status, headers]);
+
+  const categorias = React.useMemo(
+    () => ['Todas', ...Array.from(new Set(catalogo.map((p) => p.category).filter(Boolean)))],
+    [catalogo]
+  );
+
+  const produtos = React.useMemo(() => {
+    const term = qProduto.trim().toLowerCase();
+    return catalogo.filter((p) => {
+      const matchCategoria = categoriaAtiva === 'Todas' || p.category === categoriaAtiva;
+      const matchTermo = term.length === 0 || p.name.toLowerCase().includes(term);
+      return matchCategoria && matchTermo;
+    });
+  }, [catalogo, categoriaAtiva, qProduto]);
+
+  const handleRemoverItem = async (item: ComandaItem) => {
+    if (!selectedMesa) return;
+    if (!window.confirm(`Remover "${item.product_name}" da comanda?`)) return;
+    setRemovendo(item.id);
+    try {
+      const res = await fetch(`/api/mesas/comanda/item/${item.id}`, { method: 'DELETE', headers });
+      if (res.status === 401 || res.status === 403) { setExpired(true); return; }
+      await fetchComanda(selectedMesa);
+    } finally {
+      setRemovendo(null);
+    }
+  };
 
   const handleAdicionar = async (produto: ProdutoHit) => {
     if (!selectedMesa) return;
@@ -213,9 +244,24 @@ export default function GarcomMobileScreen({ qrToken }: { qrToken: string }) {
               ) : (
                 <div className="space-y-1.5">
                   {itens.map((it) => (
-                    <div key={it.id} className="flex items-center justify-between text-sm">
-                      <span className="text-zinc-300">{it.quantity}x {it.product_name}</span>
-                      <span className="text-zinc-400">{fmtBRL(it.price_at_time * it.quantity)}</span>
+                    <div key={it.id} className="flex items-center justify-between text-sm gap-2">
+                      <span className="text-zinc-300 min-w-0 truncate">{it.quantity}x {it.product_name}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-zinc-400">{fmtBRL(it.price_at_time * it.quantity)}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoverItem(it)}
+                          disabled={removendo === it.id}
+                          aria-label={`Remover ${it.product_name}`}
+                          className="w-6 h-6 flex items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:text-[#EA1D2C] hover:bg-zinc-800/80 disabled:opacity-50"
+                        >
+                          {removendo === it.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                   ))}
                   <div className="flex items-center justify-between text-sm font-bold pt-1.5 border-t border-zinc-800 mt-1.5">
@@ -239,10 +285,31 @@ export default function GarcomMobileScreen({ qrToken }: { qrToken: string }) {
                              placeholder-zinc-600 text-sm focus:outline-none focus:border-[#EA1D2C]/60"
                 />
               </div>
+
+              {categorias.length > 1 && (
+                <div className="flex gap-2 overflow-x-auto mt-3 pb-1 -mx-4 px-4">
+                  {categorias.map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setCategoriaAtiva(cat)}
+                      className={`shrink-0 px-3 h-8 rounded-full text-xs font-bold uppercase tracking-wide whitespace-nowrap border transition-colors
+                        ${categoriaAtiva === cat
+                          ? 'bg-[#EA1D2C] border-[#EA1D2C] text-white'
+                          : 'bg-zinc-900 border-zinc-800 text-zinc-400'}`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-2">
-              {buscando && <Loader2 className="w-4 h-4 text-zinc-500 animate-spin" />}
+              {catalogoCarregando && <Loader2 className="w-4 h-4 text-zinc-500 animate-spin" />}
+              {!catalogoCarregando && produtos.length === 0 && (
+                <p className="text-zinc-600 text-sm">Nenhum produto encontrado.</p>
+              )}
               {produtos.map((p) => {
                 const q = qty[p.id] || 1;
                 return (

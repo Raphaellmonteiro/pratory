@@ -676,7 +676,8 @@ export function restrictGarcomTempScope(req: Request, res: Response, next: NextF
 
   const allowed =
     (req.method === 'GET' && (req.path === '/' || req.path === '/produtos-garcom' || /^\/[^/]+\/comanda$/.test(req.path))) ||
-    (req.method === 'PUT' && /^\/[^/]+\/abrir$/.test(req.path)) ||
+    (req.method === 'PUT' && (/^\/[^/]+\/abrir$/.test(req.path) || /^\/comanda\/item\/[^/]+$/.test(req.path))) ||
+    (req.method === 'DELETE' && /^\/comanda\/item\/[^/]+$/.test(req.path)) ||
     (req.method === 'POST' && /^\/[^/]+\/comanda\/adicionar$/.test(req.path));
 
   if (!allowed) {

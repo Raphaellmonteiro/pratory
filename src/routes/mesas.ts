@@ -414,19 +414,27 @@ export function createMesasRouter() {
   router.get('/produtos-garcom', async (req: Request, res) => {
     try {
       const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
-      if (q.length < 2) return res.json([]);
-
       const term = `%${q}%`;
-      const rows = await qAll(
-        `SELECT id, name, price, category, COALESCE(is_combo,0) AS is_combo
-         FROM produtos
-         WHERE tenant_id=?
-           AND COALESCE(active,0)=1
-           AND (name ILIKE ? OR category ILIKE ?)
-         ORDER BY name ASC
-         LIMIT 30`,
-        [req.tenantId, term, term]
-      );
+      const rows = q.length >= 2
+        ? await qAll(
+            `SELECT id, name, price, category, COALESCE(is_combo,0) AS is_combo
+             FROM produtos
+             WHERE tenant_id=?
+               AND COALESCE(active,0)=1
+               AND (name ILIKE ? OR category ILIKE ?)
+             ORDER BY category ASC, name ASC
+             LIMIT 60`,
+            [req.tenantId, term, term]
+          )
+        : await qAll(
+            `SELECT id, name, price, category, COALESCE(is_combo,0) AS is_combo
+             FROM produtos
+             WHERE tenant_id=?
+               AND COALESCE(active,0)=1
+             ORDER BY category ASC, name ASC
+             LIMIT 300`,
+            [req.tenantId]
+          );
       res.json(rows);
     } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
   });
