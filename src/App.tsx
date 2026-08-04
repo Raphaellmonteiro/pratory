@@ -955,7 +955,7 @@ const handleAuth = async (e: React.FormEvent) => {
           setShowMenuHub(false);
         }}
         onLogout={handleLogout}
-        supportPhone="5582996490367"
+        supportPhone="5582981831172"
       />
     );
   }
