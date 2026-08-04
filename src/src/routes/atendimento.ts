@@ -8,6 +8,7 @@ import {
 } from '../services/storeCustomerService';
 import { AppError } from '../utils/errors';
 import { sendInternalError } from '../utils/internalServerError';
+import { normalizeProductPhotoPublicUrl } from '../utils/productPhotoUrl';
 
 type TenantRequest = Request & { tenantId: number | string };
 
@@ -67,7 +68,7 @@ export function createAtendimentoRouter() {
 
       const term = `%${q}%`;
       const rows = await qAll(
-        `SELECT id, name, price, category, COALESCE(is_combo,0) AS is_combo
+        `SELECT id, name, price, category, photo_url, COALESCE(is_combo,0) AS is_combo
          FROM produtos
          WHERE tenant_id=?
            AND COALESCE(active,0)=1
@@ -77,7 +78,12 @@ export function createAtendimentoRouter() {
         [tenantId, term, term]
       );
 
-      res.json(rows);
+      const withPhoto = rows.map((r: any) => ({
+        ...r,
+        photo_url: normalizeProductPhotoPublicUrl(r.photo_url),
+      }));
+
+      res.json(withPhoto);
     } catch (e: unknown) {
       sendInternalError(res, 'routes/atendimento:produtos', e);
     }
