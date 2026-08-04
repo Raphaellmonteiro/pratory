@@ -460,7 +460,7 @@ export default function AtendimentoMobileScreen({ token }: { token: string }) {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 text-zinc-900">
+    <div className="min-h-screen bg-zinc-950 text-white">
       <div className="mx-auto w-full max-w-2xl px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
@@ -469,24 +469,24 @@ export default function AtendimentoMobileScreen({ token }: { token: string }) {
           </div>
           <a
             href="/"
-            className="shrink-0 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-bold text-zinc-700 hover:bg-zinc-50 hover:text-red-700"
+            className="shrink-0 rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs font-bold text-zinc-300 hover:bg-zinc-800 hover:text-white"
           >
             Painel
           </a>
         </div>
 
         <div className="mt-4 space-y-3">
-          <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-            <h2 className="text-sm font-black">1) Cliente</h2>
+          <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
+            <h2 className="text-sm font-black text-white">1) Cliente</h2>
             <div className="mt-3 space-y-2">
               <input
                 value={clienteNome}
                 onChange={(e) => setClienteNome(e.target.value)}
                 autoComplete="name"
                 placeholder={cliente ? 'Cliente (opcional)' : 'Cliente (obrigatório se não tiver cadastro)'}
-                className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-[#EA1D2C]/60 focus:ring-2 focus:ring-[#EA1D2C]/20"
               />
-              <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-[12px] text-zinc-700">
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2 text-[12px] text-zinc-400">
                 {cliente
                   ? `Cadastro encontrado: ${cliente.nome} (${cliente.telefone})`
                   : 'Sem cadastro? Informe o nome e siga.'}
@@ -494,8 +494,8 @@ export default function AtendimentoMobileScreen({ token }: { token: string }) {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-            <h2 className="text-sm font-black">2) Telefone</h2>
+          <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
+            <h2 className="text-sm font-black text-white">2) Telefone</h2>
             <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
               <input
                 value={telefone}
@@ -507,12 +507,12 @@ export default function AtendimentoMobileScreen({ token }: { token: string }) {
                 autoComplete="tel"
                 enterKeyHint="search"
                 placeholder="Telefone (DDD) — buscar cadastro"
-                className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-[#EA1D2C]/60 focus:ring-2 focus:ring-[#EA1D2C]/20"
               />
               <button
                 type="button"
                 onClick={() => void onBuscarCliente()}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-3 py-2.5 text-sm font-black text-white hover:bg-red-700 disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#EA1D2C] px-3 py-2.5 text-sm font-black text-white hover:bg-[#C9101E] disabled:opacity-50"
                 disabled={!isTelefoneOk || prefillLoading}
               >
                 <Search size={16} />
@@ -524,23 +524,23 @@ export default function AtendimentoMobileScreen({ token }: { token: string }) {
 
             </div>
             <p className="mt-2 text-[11px] text-zinc-500">
-              Busca automatica ao digitar (min. 8 digitos). O botao <span className="font-bold text-zinc-800">Buscar</span> serve para forcar/repetir.
+              Busca automatica ao digitar (min. 8 digitos). O botao <span className="font-bold text-zinc-300">Buscar</span> serve para forcar/repetir.
               {/*
               Dica: digitou o telefone? toque em <span className="font-bold text-zinc-300">Buscar</span> e já puxa cliente/endereço.
               */}
             </p>
           </section>
 
-          <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-            <h2 className="text-sm font-black">3) Endereço</h2>
+          <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
+            <h2 className="text-sm font-black text-white">3) Endereço</h2>
             <div className="mt-3 flex gap-2">
               <button
                 type="button"
                 onClick={() => setTipoRetirada('delivery')}
                 className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-black border ${
                   tipoRetirada === 'delivery'
-                    ? 'bg-red-600 border-red-600 text-white shadow-sm'
-                    : 'bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50'
+                    ? 'bg-[#EA1D2C] border-[#EA1D2C] text-white'
+                    : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-800'
                 }`}
               >
                 Entrega
@@ -550,8 +550,8 @@ export default function AtendimentoMobileScreen({ token }: { token: string }) {
                 onClick={() => setTipoRetirada('retirada')}
                 className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-black border ${
                   tipoRetirada === 'retirada'
-                    ? 'bg-red-600 border-red-600 text-white shadow-sm'
-                    : 'bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50'
+                    ? 'bg-[#EA1D2C] border-[#EA1D2C] text-white'
+                    : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-800'
                 }`}
               >
                 Retirada
@@ -572,14 +572,14 @@ export default function AtendimentoMobileScreen({ token }: { token: string }) {
                         }}
                         className={`shrink-0 rounded-xl border px-3 py-2 text-left ${
                           Number(enderecoId) === Number(e.id)
-                            ? 'border-red-400 bg-red-50'
-                            : 'border-zinc-200 bg-white hover:bg-zinc-50'
+                            ? 'border-[#EA1D2C]/50 bg-[#EA1D2C]/10'
+                            : 'border-zinc-800 bg-zinc-950 hover:bg-zinc-800'
                         }`}
                       >
                         <div className="text-[10px] font-black uppercase tracking-wider text-zinc-500">
                           {e.label || 'Endereço'}
                         </div>
-                        <div className="mt-1 text-[12px] text-zinc-800 line-clamp-2">
+                        <div className="mt-1 text-[12px] text-zinc-300 line-clamp-2">
                           {formatDeliveryAddressLine(e)}
                         </div>
                       </button>
@@ -594,14 +594,14 @@ export default function AtendimentoMobileScreen({ token }: { token: string }) {
                     setEnderecoLivre('');
                     requestAnimationFrame(() => enderecoLivreRef.current?.focus());
                   }}
-                  className="w-full rounded-xl border border-dashed border-zinc-300 bg-white px-3 py-2.5 text-left hover:bg-zinc-50"
+                  className="w-full rounded-xl border border-dashed border-zinc-700 bg-zinc-950 px-3 py-2.5 text-left hover:bg-zinc-800"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-700">
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#EA1D2C]/15 text-[#EA1D2C]">
                       <Plus size={16} />
                     </span>
                     <div>
-                      <div className="text-sm font-black text-zinc-900">Adicionar novo endereço</div>
+                      <div className="text-sm font-black text-white">Adicionar novo endereço</div>
                       <div className="text-[11px] text-zinc-500">Limpa a seleção e permite digitar outro endereço</div>
                     </div>
                   </div>
@@ -614,36 +614,36 @@ export default function AtendimentoMobileScreen({ token }: { token: string }) {
                   placeholder="Endereço completo"
                   autoComplete="street-address"
                   rows={3}
-                  className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-[#EA1D2C]/60 focus:ring-2 focus:ring-[#EA1D2C]/20"
                 />
 
-                <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-                  <div className="text-[10px] font-black uppercase tracking-wider text-zinc-600">Taxa de entrega</div>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-3">
+                  <div className="text-[10px] font-black uppercase tracking-wider text-zinc-500">Taxa de entrega</div>
                   <input
                     value={String(taxaEntrega)}
                     onChange={(e) => setTaxaEntrega(safeNumber(e.target.value, 0))}
                     inputMode="decimal"
-                    className="mt-2 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                    className="mt-2 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-sm text-white outline-none focus:border-[#EA1D2C]/60 focus:ring-2 focus:ring-[#EA1D2C]/20"
                   />
                 </div>
               </div>
             )}
 
             {tipoRetirada === 'retirada' && (
-              <div className="mt-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-[12px] text-zinc-700">
+              <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-950/60 p-3 text-[12px] text-zinc-400">
                 Retirada no balcão (sem endereço / sem taxa).
               </div>
             )}
           </section>
 
-          <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-            <h2 className="text-sm font-black">4) Itens</h2>
+          <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
+            <h2 className="text-sm font-black text-white">4) Itens</h2>
             <div className="mt-3">
               <input
                 value={qProduto}
                 onChange={(e) => setQProduto(e.target.value)}
                 placeholder="Adicionar item (digite 2 letras)"
-                className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-[#EA1D2C]/60 focus:ring-2 focus:ring-[#EA1D2C]/20"
               />
               {buscandoProdutos && <p className="mt-2 text-[11px] text-zinc-500">Buscando…</p>}
               {produtos.length > 0 && (
@@ -653,14 +653,14 @@ export default function AtendimentoMobileScreen({ token }: { token: string }) {
                       key={p.id}
                       type="button"
                       onClick={() => addProduto(p)}
-                      className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-left shadow-sm hover:bg-zinc-50"
+                      className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-left hover:bg-zinc-800"
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="text-sm font-semibold text-zinc-900 truncate">{p.name}</div>
+                          <div className="text-sm font-semibold text-white truncate">{p.name}</div>
                           <div className="text-[11px] text-zinc-500 truncate">{p.category}</div>
                         </div>
-                        <div className="text-sm font-black text-zinc-900">{fmtBRL(p.price)}</div>
+                        <div className="text-sm font-black text-white">{fmtBRL(p.price)}</div>
                       </div>
                     </button>
                   ))}
@@ -673,10 +673,10 @@ export default function AtendimentoMobileScreen({ token }: { token: string }) {
                 <p className="text-[12px] text-zinc-500">Adicione itens para montar o pedido.</p>
               ) : (
                 cart.map((it, idx) => (
-                  <div key={`${it.product_id}-${idx}`} className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm">
+                  <div key={`${it.product_id}-${idx}`} className="rounded-xl border border-zinc-800 bg-zinc-950 p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-sm font-black text-zinc-900">{it.name}</p>
+                        <p className="text-sm font-black text-white">{it.name}</p>
                         <p className="text-[11px] text-zinc-500">
                           {fmtBRL(it.unit_price_hint)} · linha: {fmtBRL(it.unit_price_hint * it.quantity)}
                         </p>
@@ -684,7 +684,7 @@ export default function AtendimentoMobileScreen({ token }: { token: string }) {
                       <button
                         type="button"
                         onClick={() => remove(idx)}
-                        className="rounded-xl border border-zinc-200 bg-white p-2 text-zinc-700 hover:bg-zinc-50"
+                        className="rounded-xl border border-zinc-800 bg-zinc-900 p-2 text-zinc-400 hover:text-[#EA1D2C] hover:bg-zinc-800"
                         aria-label="Remover"
                       >
                         <Trash2 size={16} />
@@ -695,16 +695,16 @@ export default function AtendimentoMobileScreen({ token }: { token: string }) {
                       <button
                         type="button"
                         onClick={() => dec(idx)}
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
                         aria-label="Diminuir"
                       >
                         <Minus size={16} />
                       </button>
-                      <div className="min-w-[52px] text-center text-sm font-black">{it.quantity}</div>
+                      <div className="min-w-[52px] text-center text-sm font-black text-white">{it.quantity}</div>
                       <button
                         type="button"
                         onClick={() => inc(idx)}
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
                         aria-label="Aumentar"
                       >
                         <Plus size={16} />
@@ -714,8 +714,8 @@ export default function AtendimentoMobileScreen({ token }: { token: string }) {
                         onClick={() => setOpenObsIdx((prev) => (prev === idx ? null : idx))}
                         className={`ml-2 rounded-xl border px-3 py-2 text-sm font-black ${
                           openObsIdx === idx || it.observation
-                            ? 'border-red-300 bg-red-50 text-red-700'
-                            : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+                            ? 'border-[#EA1D2C]/40 bg-[#EA1D2C]/10 text-[#EA1D2C]'
+                            : 'border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800'
                         }`}
                       >
                         Obs
@@ -728,7 +728,7 @@ export default function AtendimentoMobileScreen({ token }: { token: string }) {
                           value={it.observation}
                           onChange={(e) => setObsItem(idx, e.target.value)}
                           placeholder="Observação do item (opcional)"
-                          className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                          className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-[#EA1D2C]/60 focus:ring-2 focus:ring-[#EA1D2C]/20"
                         />
                       </div>
                     )}
@@ -738,23 +738,23 @@ export default function AtendimentoMobileScreen({ token }: { token: string }) {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-            <h2 className="text-sm font-black">5) Total</h2>
+          <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
+            <h2 className="text-sm font-black text-white">5) Total</h2>
             <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm">
-                <div className="text-[10px] font-black uppercase tracking-wider text-zinc-600">Subtotal</div>
-                <div className="mt-1 text-sm font-black text-zinc-900">{fmtBRL(subtotal)}</div>
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3">
+                <div className="text-[10px] font-black uppercase tracking-wider text-zinc-500">Subtotal</div>
+                <div className="mt-1 text-sm font-black text-white">{fmtBRL(subtotal)}</div>
                 <div className="text-[11px] text-zinc-500">
                   {validandoSubtotal ? 'recalculando…' : subtotalServer != null ? 'validado' : 'estimado'}
                 </div>
               </div>
-              <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm">
-                <div className="text-[10px] font-black uppercase tracking-wider text-zinc-600">Taxa</div>
-                <div className="mt-1 text-sm font-black text-zinc-900">{fmtBRL(taxaFinal)}</div>
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3">
+                <div className="text-[10px] font-black uppercase tracking-wider text-zinc-500">Taxa</div>
+                <div className="mt-1 text-sm font-black text-white">{fmtBRL(taxaFinal)}</div>
               </div>
-              <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm">
-                <div className="text-[10px] font-black uppercase tracking-wider text-zinc-600">Total</div>
-                <div className="mt-1 text-sm font-black text-red-700">{fmtBRL(total)}</div>
+              <div className="rounded-xl border border-[#EA1D2C]/30 bg-[#EA1D2C]/5 p-3">
+                <div className="text-[10px] font-black uppercase tracking-wider text-zinc-500">Total</div>
+                <div className="mt-1 text-sm font-black text-[#EA1D2C]">{fmtBRL(total)}</div>
               </div>
             </div>
 
@@ -764,17 +764,17 @@ export default function AtendimentoMobileScreen({ token }: { token: string }) {
                 onChange={(e) => setObsPedido(e.target.value)}
                 placeholder="Observação do pedido (opcional)"
                 rows={2}
-                className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-[#EA1D2C]/60 focus:ring-2 focus:ring-[#EA1D2C]/20"
               />
             </div>
           </section>
 
-          <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-            <h2 className="text-sm font-black">6) Pagamento</h2>
+          <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
+            <h2 className="text-sm font-black text-white">6) Pagamento</h2>
             <select
               value={pagamentoTipo}
               onChange={(e) => setPagamentoTipo(e.target.value as any)}
-              className="mt-3 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+              className="mt-3 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-sm text-white outline-none focus:border-[#EA1D2C]/60 focus:ring-2 focus:ring-[#EA1D2C]/20"
             >
               <option value="dinheiro">Dinheiro</option>
               <option value="pix">PIX</option>
@@ -783,12 +783,12 @@ export default function AtendimentoMobileScreen({ token }: { token: string }) {
           </section>
 
           {erro && (
-            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div className="rounded-2xl border border-red-900/40 bg-red-950/30 px-4 py-3 text-sm text-red-400">
               {erro}
             </div>
           )}
           {okMsg && (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            <div className="rounded-2xl border border-emerald-900/40 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-400">
               {okMsg}
             </div>
           )}
@@ -797,7 +797,7 @@ export default function AtendimentoMobileScreen({ token }: { token: string }) {
             type="button"
             onClick={() => void onSalvar()}
             disabled={!canSave}
-            className="w-full rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white shadow-sm hover:bg-red-700 disabled:opacity-40"
+            className="w-full rounded-2xl bg-[#EA1D2C] px-4 py-3 text-sm font-black text-white hover:bg-[#C9101E] disabled:opacity-40"
           >
             {saving ? 'Salvando…' : 'Salvar'}
           </button>

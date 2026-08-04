@@ -468,6 +468,7 @@ export default function CentralPedidosScreen({
   const [compactMode, setCompactMode] = useState(false);
   const [boardCanScrollLeft, setBoardCanScrollLeft] = useState(false);
   const [boardCanScrollRight, setBoardCanScrollRight] = useState(false);
+  const [showQrAtendimento, setShowQrAtendimento] = useState(false);
   const boardScrollRef = useRef<HTMLDivElement | null>(null);
   const boardTouchStateRef = useRef<CentralBoardTouchState>({
     active: false,
@@ -766,7 +767,7 @@ export default function CentralPedidosScreen({
               <Button
                 type="button"
                 variant="ghost"
-                className="!min-h-[36px] sm:!min-h-[38px] !px-2.5 !py-1.5 !text-[11px] opacity-75 hover:opacity-100"
+                className="!min-h-[36px] sm:!min-h-[38px] !px-2.5 !py-1.5 !text-[11px]"
                 onClick={() => {
                   const w = window.open('/m/atendimento', '_blank', 'noopener,noreferrer');
                   if (w) w.opener = null;
@@ -774,6 +775,16 @@ export default function CentralPedidosScreen({
               >
                 <Smartphone size={13} />
                 Atendimento Mobile
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="!min-h-[36px] sm:!min-h-[38px] !px-2.5 !py-1.5 !text-[11px]"
+                onClick={() => setShowQrAtendimento(true)}
+                title="Gerar QR para abrir o Atendimento Mobile no celular"
+              >
+                <QrCode size={13} />
+                QR
               </Button>
               <Button
                 type="button"
@@ -973,6 +984,42 @@ export default function CentralPedidosScreen({
             onRefresh={() => void fetchOrders()}
             onOrderPatch={(patch) => setDetail((current) => (current ? { ...current, ...patch } : current))}
           />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showQrAtendimento && (
+          <div
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[200] flex items-center justify-center p-4"
+            onClick={() => setShowQrAtendimento(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              className="bg-white dark:bg-zinc-900 rounded-3xl w-full max-w-sm shadow-2xl p-8 flex flex-col items-center text-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-xl font-black text-zinc-900 dark:text-white mb-1">Atendimento Mobile</h3>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">
+                Escaneie com o celular do atendente para abrir. Ele precisa fazer login normalmente —
+                o QR só é um atalho para não digitar o endereço.
+              </p>
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
+                  `${window.location.origin}/m/atendimento`
+                )}&bgcolor=ffffff&color=000000&margin=8`}
+                alt="QR Atendimento Mobile"
+                className="w-[220px] h-[220px] rounded-2xl border border-zinc-100 dark:border-zinc-800"
+              />
+              <button
+                onClick={() => setShowQrAtendimento(false)}
+                className="mt-6 w-full px-4 py-3 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-xl font-semibold text-sm transition-all"
+              >
+                Fechar
+              </button>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </motion.div>
