@@ -1,6 +1,6 @@
 import React, { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { RefreshCw, LayoutGrid, Smartphone, X, ChevronRight, Clock, Printer, BadgeCheck, ReceiptText, MapPinned, MessageCircle, QrCode, ListTree, ChefHat } from 'lucide-react';
+import { RefreshCw, LayoutGrid, X, ChevronRight, Clock, Printer, BadgeCheck, ReceiptText, MapPinned, MessageCircle, QrCode, ListTree, ChefHat } from 'lucide-react';
 import type { Order } from '../types';
 import { Card, Button } from '../components/ui/Card';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
@@ -766,25 +766,13 @@ export default function CentralPedidosScreen({
             <div className="flex items-center gap-2">
               <Button
                 type="button"
-                variant="ghost"
-                className="!min-h-[36px] sm:!min-h-[38px] !px-2.5 !py-1.5 !text-[11px]"
-                onClick={() => {
-                  const w = window.open('/m/atendimento', '_blank', 'noopener,noreferrer');
-                  if (w) w.opener = null;
-                }}
-              >
-                <Smartphone size={13} />
-                Atendimento Mobile
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
+                variant="secondary"
                 className="!min-h-[36px] sm:!min-h-[38px] !px-2.5 !py-1.5 !text-[11px]"
                 onClick={() => setShowQrAtendimento(true)}
-                title="Gerar QR para abrir o Atendimento Mobile no celular"
+                title="Gerar QR para o atendente abrir o Atendimento Mobile (comanda/mesas) no celular"
               >
                 <QrCode size={13} />
-                QR
+                QR Comanda/Mesas
               </Button>
               <Button
                 type="button"
@@ -1000,7 +988,7 @@ export default function CentralPedidosScreen({
               className="bg-white dark:bg-zinc-900 rounded-3xl w-full max-w-sm shadow-2xl p-8 flex flex-col items-center text-center"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-xl font-black text-zinc-900 dark:text-white mb-1">Atendimento Mobile</h3>
+              <h3 className="text-xl font-black text-zinc-900 dark:text-white mb-1">QR Comanda/Mesas</h3>
               <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">
                 Escaneie com o celular do atendente para abrir. Ele precisa fazer login normalmente —
                 o QR só é um atalho para não digitar o endereço.

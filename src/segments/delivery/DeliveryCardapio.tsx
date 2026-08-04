@@ -4263,6 +4263,7 @@ function PedidoSucessoModal({
   const sb = th.sacola;
   const isLight = th.mode === 'light_red';
   const [acompanharOpen, setAcompanharOpen] = useState(false);
+  const [confirmeiPagamentoPix, setConfirmeiPagamentoPix] = useState(false);
   const isPix = pedidoOk.pagamento_tipo === 'pix';
   const isRetirada = pedidoOk.canal === 'retirada' || tipoAtendimento === 'retirada';
   const pixNoModal = pedidoOk.checkout_modal_concluido === true;
@@ -4434,7 +4435,21 @@ function PedidoSucessoModal({
             <Clock size={18} />
             Acompanhar pedido online
           </button>
-          {waMsgPixComprovante && (
+          {isPix && !pixNoModal && !confirmeiPagamentoPix && (
+            <button
+              type="button"
+              onClick={() => setConfirmeiPagamentoPix(true)}
+              className={`flex w-full items-center justify-center gap-2 rounded-2xl border py-3.5 text-sm font-bold transition-colors ${
+                isLight
+                  ? 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+                  : 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:bg-zinc-800'
+              }`}
+            >
+              <CheckCircle2 size={18} />
+              Já fiz o pagamento via Pix
+            </button>
+          )}
+          {waMsgPixComprovante && (pixNoModal || confirmeiPagamentoPix) && (
             <a
               href={waMsgPixComprovante}
               target="_blank"
@@ -6441,7 +6456,7 @@ function TelaConfirmado({ pedidoOk, config, slug, tipoAtendimento, clienteToken,
             >
               <Clock size={16}/>Acompanhar pedido
             </button>
-            {waMsgPix && (
+            {waMsgPix && copiado && (
               <button
                 type="button"
                 onClick={() => window.location.assign(waMsgPix)}
@@ -6449,6 +6464,11 @@ function TelaConfirmado({ pedidoOk, config, slug, tipoAtendimento, clienteToken,
               >
                 <Smartphone size={16}/>Enviar comprovante pelo WhatsApp
               </button>
+            )}
+            {waMsgPix && !copiado && (
+              <p className="text-center text-xs text-zinc-400">
+                Copie o código Pix acima e finalize o pagamento para liberar o envio do comprovante.
+              </p>
             )}
           </div>
         )}
