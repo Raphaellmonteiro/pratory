@@ -675,14 +675,21 @@ document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementB
       const tenant = await q1('SELECT id,nome_estabelecimento FROM clientes WHERE usuario=?', [slug]);
       if (!tenant) return res.status(404).json({ error:'Restaurante não encontrado', slug });
 
-      // 1ª query: pedidos do DIA ATUAL (fuso BR) não finalizados.
-      // Usar data do dia ao invés de INTERVAL '24h' evita que pedidos
-      // do dia anterior permaneçam visíveis na tela da cozinha após a meia-noite.
+      // 1ª query: pedidos ainda ativos (não finalizados), limitados a um
+      // intervalo curto pra evitar que pedidos esquecidos há dias fiquem
+      // presos na tela.
+      // CORREÇÃO: antes o filtro exigia created_at::date = hoje::date. Isso
+      // escondia da cozinha qualquer pedido de mesa aberto antes da meia-noite
+      // (ex.: mesa aberta às 23h) assim que o relógio virava o dia — o pedido
+      // continuava ativo (status Criado/Em Preparo) mas sumia da tela, e
+      // qualquer item lançado nele depois da virada nunca aparecia. Trocado
+      // por uma janela de 1 dia pra trás, mantendo o mesmo objetivo (não
+      // acumular pedido antigo) sem descartar mesas ainda abertas.
       const allOrders = await qAll(
         `SELECT * FROM pedidos
          WHERE tenant_id=?
            AND ${buildOperationalKdsOrderClause()}
-           AND (created_at AT TIME ZONE '${TZ}')::date = (NOW() AT TIME ZONE '${TZ}')::date
+           AND (created_at AT TIME ZONE '${TZ}')::date >= (NOW() AT TIME ZONE '${TZ}')::date - 1
          ORDER BY created_at ASC`,
         [tenant.id]
       );
@@ -712,12 +719,30 @@ document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementB
         itemsByOrder.set(item.order_id, list);
       }
 
-      // Deduplica pedidos de mesa (mantém o mais recente por mesa)
+      // Deduplica pedidos de mesa (mantém o mais recente por mesa pra exibição).
+      // CORREÇÃO: quando duas requisições de "adicionar item" pra mesma mesa
+      // chegam quase juntas, `syncKdsItem` (routes/mesas.ts) pode não achar o
+      // pedido KDS ainda sendo criado pela outra e acabar criando um segundo
+      // pedido pra mesma mesa (race condition). Antes, aqui a gente descartava
+      // esse pedido "duplicado" inteiro — e os itens lançados nele sumiam da
+      // cozinha pra sempre, mesmo continuando certinhos na comanda da mesa.
+      // Agora mantém o pedido mais recente pra exibição, mas MESCLA os itens
+      // de todos os pedidos duplicados daquela mesa nele, então nenhum item
+      // fica escondido.
       const seen = new Map<string, any>();
       for (const o of allOrders) {
         const key = (o.observation || '').startsWith('Mesa ') ? o.observation : String(o.id);
         const ex = seen.get(key);
         if (!ex || o.id > ex.id) seen.set(key, o);
+      }
+
+      for (const o of allOrders) {
+        const key = (o.observation || '').startsWith('Mesa ') ? o.observation : String(o.id);
+        const primary = seen.get(key);
+        if (!primary || primary.id === o.id) continue;
+        const primaryItems = itemsByOrder.get(primary.id) || [];
+        const extraItems = itemsByOrder.get(o.id) || [];
+        if (extraItems.length > 0) itemsByOrder.set(primary.id, [...primaryItems, ...extraItems]);
       }
 
       const deduped = Array.from(seen.values())

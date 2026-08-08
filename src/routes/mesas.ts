@@ -351,55 +351,86 @@ async function syncKdsItem(
     const mesa = await q1('SELECT numero FROM mesas WHERE id=? AND tenant_id=?', [mesaId, tenantId]);
     if (!mesa) return;
     const mesaLabel = `Mesa ${mesa.numero}`;
-    let kdsOrder = await q1(`SELECT * FROM pedidos WHERE tenant_id=? AND observation=? AND ${buildOperationalKdsOrderClause()} ORDER BY id DESC LIMIT 1`, [tenantId, mesaLabel]);
-    if (kdsOrder) pedidoKdsId = Number(kdsOrder.id);
-    if (!kdsOrder && mode === 'remove') return;
-    if (!kdsOrder) {
-      // CORREÇÃO: Data baseada no fuso de SP para o order_number do KDS
-      const dateObj = new Date(new Date().toLocaleString("en-US", { timeZone: TZ }));
-      const y = String(dateObj.getFullYear()).slice(-2);
-      const m = String(dateObj.getMonth() + 1).padStart(2, '0');
-      const d = String(dateObj.getDate()).padStart(2, '0');
-      const dateStr = `${y}${m}${d}`;
-      
-      const maxOrd = await q1('SELECT MAX(id) as maxId FROM pedidos WHERE tenant_id=?', [tenantId]);
-      const on = `${dateStr}-${tenantId}-KDS-${((maxOrd?.maxId||0)+1).toString().padStart(4,'0')}-${Date.now()}`;
-      const newId = await qInsert("INSERT INTO pedidos (order_number,total_amount,observation,tenant_id,senha_pedido,tipo_retirada,canal,status) VALUES (?,?,?,?,?,'mesa','mesa','Criado')", [on, priceAtTime*Math.abs(diffQtd), mesaLabel, tenantId, mesa.numero]);
-      pedidoKdsId = Number(newId);
-      await qRun(
-        "INSERT INTO itens_pedido (order_id,product_id,quantity,type,price_at_time,tenant_id,variation_id,observation,selecoes_json) VALUES (?,?,?,'Mesa',?,?,?,?,?)",
-        [newId, productId, Math.abs(diffQtd), priceAtTime, tenantId, line.variation_id, line.observation, line.selecoes_json]
+
+    // CORREÇÃO: todo o "achar (ou criar) o pedido KDS da mesa + somar o item"
+    // roda dentro de uma transação com lock na linha da mesa (`FOR UPDATE`).
+    // Antes, duas chamadas de syncKdsItem quase simultâneas pra mesma mesa
+    // (ex.: garçom lançando vários itens em sequência rápida, ou dois toques
+    // acidentais) podiam cada uma checar "existe pedido pra Mesa X?" antes de
+    // a outra terminar de inserir, não achar nada, e as duas criarem um
+    // pedido novo — resultando em 2 pedidos ativos pra mesma mesa. A tela do
+    // KDS deduplica por mesa e descartava os itens do pedido "perdedor", que
+    // sumiam da cozinha mesmo continuando certinhos na comanda. O lock aqui
+    // serializa essas chamadas e fecha essa corrida.
+    const txResult = await withTx(async (client): Promise<{ id: number; isNew: boolean } | null> => {
+      await txQ1(client, 'SELECT id FROM mesas WHERE id=? AND tenant_id=? FOR UPDATE', [mesaId, tenantId]);
+
+      const kdsOrder = await txQ1(
+        client,
+        `SELECT * FROM pedidos WHERE tenant_id=? AND observation=? AND ${buildOperationalKdsOrderClause()} ORDER BY id DESC LIMIT 1 FOR UPDATE`,
+        [tenantId, mesaLabel]
       );
-      notifyTenantOrderStreams(tenantId, 'new', { orderId: Number(newId) });
-      return;
-    }
-    const existing = await q1(
-      `SELECT * FROM itens_pedido WHERE order_id=? AND product_id=? AND tenant_id=?
-         AND observation IS NOT DISTINCT FROM ?
-         AND variation_id IS NOT DISTINCT FROM ?
-         AND selecoes_json IS NOT DISTINCT FROM ?`,
-      [kdsOrder.id, productId, tenantId, line.observation, line.variation_id, line.selecoes_json]
-    );
-    if (existing) {
-      const nq = Number(existing.quantity)+diffQtd;
-      if (nq<=0) {
-        await qRun('DELETE FROM itens_pedido WHERE id=? AND tenant_id=?', [existing.id, tenantId]);
-        const rem = await q1('SELECT COUNT(*) as c FROM itens_pedido WHERE order_id=? AND tenant_id=?', [kdsOrder.id, tenantId]);
-        if (Number(rem?.c||0)===0) await qRun("UPDATE pedidos SET status='Entregue' WHERE id=? AND tenant_id=?", [kdsOrder.id, tenantId]);
-      } else {
-        await qRun(
-          'UPDATE itens_pedido SET quantity=?, variation_id=?, observation=?, selecoes_json=? WHERE id=? AND tenant_id=?',
-          [nq, line.variation_id, line.observation, line.selecoes_json, existing.id, tenantId]
+      if (kdsOrder) pedidoKdsId = Number(kdsOrder.id);
+      if (!kdsOrder && mode === 'remove') return null;
+
+      if (!kdsOrder) {
+        // CORREÇÃO: Data baseada no fuso de SP para o order_number do KDS
+        const dateObj = new Date(new Date().toLocaleString("en-US", { timeZone: TZ }));
+        const y = String(dateObj.getFullYear()).slice(-2);
+        const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const d = String(dateObj.getDate()).padStart(2, '0');
+        const dateStr = `${y}${m}${d}`;
+
+        const maxOrd = await txQ1(client, 'SELECT MAX(id) as maxId FROM pedidos WHERE tenant_id=?', [tenantId]);
+        const on = `${dateStr}-${tenantId}-KDS-${((maxOrd?.maxId||0)+1).toString().padStart(4,'0')}-${Date.now()}`;
+        const newId = await txInsert(
+          client,
+          "INSERT INTO pedidos (order_number,total_amount,observation,tenant_id,senha_pedido,tipo_retirada,canal,status) VALUES (?,?,?,?,?,'mesa','mesa','Criado')",
+          [on, priceAtTime*Math.abs(diffQtd), mesaLabel, tenantId, mesa.numero]
+        );
+        pedidoKdsId = Number(newId);
+        await txRun(
+          client,
+          "INSERT INTO itens_pedido (order_id,product_id,quantity,type,price_at_time,tenant_id,variation_id,observation,selecoes_json) VALUES (?,?,?,'Mesa',?,?,?,?,?)",
+          [newId, productId, Math.abs(diffQtd), priceAtTime, tenantId, line.variation_id, line.observation, line.selecoes_json]
+        );
+        return { id: Number(newId), isNew: true };
+      }
+
+      const existing = await txQ1(
+        client,
+        `SELECT * FROM itens_pedido WHERE order_id=? AND product_id=? AND tenant_id=?
+           AND observation IS NOT DISTINCT FROM ?
+           AND variation_id IS NOT DISTINCT FROM ?
+           AND selecoes_json IS NOT DISTINCT FROM ?`,
+        [kdsOrder.id, productId, tenantId, line.observation, line.variation_id, line.selecoes_json]
+      );
+      if (existing) {
+        const nq = Number(existing.quantity)+diffQtd;
+        if (nq<=0) {
+          await txRun(client, 'DELETE FROM itens_pedido WHERE id=? AND tenant_id=?', [existing.id, tenantId]);
+          const rem = await txQ1(client, 'SELECT COUNT(*) as c FROM itens_pedido WHERE order_id=? AND tenant_id=?', [kdsOrder.id, tenantId]);
+          if (Number(rem?.c||0)===0) await txRun(client, "UPDATE pedidos SET status='Entregue' WHERE id=? AND tenant_id=?", [kdsOrder.id, tenantId]);
+        } else {
+          await txRun(
+            client,
+            'UPDATE itens_pedido SET quantity=?, variation_id=?, observation=?, selecoes_json=? WHERE id=? AND tenant_id=?',
+            [nq, line.variation_id, line.observation, line.selecoes_json, existing.id, tenantId]
+          );
+        }
+      } else if (diffQtd>0) {
+        await txRun(
+          client,
+          "INSERT INTO itens_pedido (order_id,product_id,quantity,type,price_at_time,tenant_id,variation_id,observation,selecoes_json) VALUES (?,?,?,'Mesa',?,?,?,?,?)",
+          [kdsOrder.id, productId, diffQtd, priceAtTime, tenantId, line.variation_id, line.observation, line.selecoes_json]
         );
       }
-    } else if (diffQtd>0) {
-      await qRun(
-        "INSERT INTO itens_pedido (order_id,product_id,quantity,type,price_at_time,tenant_id,variation_id,observation,selecoes_json) VALUES (?,?,?,'Mesa',?,?,?,?,?)",
-        [kdsOrder.id, productId, diffQtd, priceAtTime, tenantId, line.variation_id, line.observation, line.selecoes_json]
-      );
-    }
-    await qRun('UPDATE pedidos SET total_amount=total_amount+? WHERE id=? AND tenant_id=?', [priceAtTime*diffQtd, kdsOrder.id, tenantId]);
-    notifyTenantOrderStreams(tenantId, 'status', { orderId: Number(kdsOrder.id) });
+      await txRun(client, 'UPDATE pedidos SET total_amount=total_amount+? WHERE id=? AND tenant_id=?', [priceAtTime*diffQtd, kdsOrder.id, tenantId]);
+      return { id: Number(kdsOrder.id), isNew: false };
+    });
+
+    if (txResult == null) return;
+    notifyTenantOrderStreams(tenantId, txResult.isNew ? 'new' : 'status', { orderId: txResult.id });
   } catch (e: unknown) {
     const errMessage = e instanceof Error ? e.message : String(e);
     logError(

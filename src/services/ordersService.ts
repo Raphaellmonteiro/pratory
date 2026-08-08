@@ -2296,61 +2296,85 @@ export async function addItemToMesaComanda(input: {
 
   const item = parseMesaComandaAddItem(input.body, 'Item');
 
-  const mesa = await q1<{ id: number }>('SELECT id FROM mesas WHERE id=? AND tenant_id=?', [mesaId, tenantId]);
-  if (!mesa) {
-    throw new AppError('Mesa não encontrada', 404);
-  }
-
-  let comanda = await q1<{ id: number }>(
-    "SELECT id FROM comandas WHERE mesa_id=? AND status='aberta' AND tenant_id=? LIMIT 1",
-    [mesaId, tenantId]
-  );
-  if (!comanda) {
-    await qRun("UPDATE mesas SET status='aberta', opened_at=NOW() WHERE id=? AND tenant_id=?", [mesaId, tenantId]);
-    const cid = await qInsert("INSERT INTO comandas (mesa_id,tenant_id,status) VALUES (?,?,'aberta')", [
+  // CORREÇÃO: todo o "achar/abrir comanda da mesa + achar linha existente +
+  // somar quantidade" roda dentro de uma transação com lock na linha da mesa
+  // (`FOR UPDATE`). Sem isso, dois lançamentos quase simultâneos pro mesmo
+  // item (dois toques em "adicionar" em sequência rápida, ou um retry de
+  // rede duplicando a requisição) podiam cada um checar "já existe essa
+  // linha na comanda?" antes do outro terminar de gravar, os dois não
+  // acharem nada, e os dois criarem uma linha nova em vez de uma só linha
+  // com a quantidade somada — ou, dependendo da ordem de commit, uma
+  // sobrescrever silenciosamente o incremento da outra. O lock serializa
+  // essas chamadas pra mesma mesa e fecha essa corrida.
+  const comandaId = await withTx(async (client) => {
+    const mesa = await txQ1<{ id: number }>(client, 'SELECT id FROM mesas WHERE id=? AND tenant_id=? FOR UPDATE', [
       mesaId,
       tenantId,
     ]);
-    comanda = await q1<{ id: number }>('SELECT id FROM comandas WHERE id=?', [cid]);
-    if (!comanda) {
-      throw new AppError('Falha ao abrir comanda', 500);
+    if (!mesa) {
+      throw new AppError('Mesa não encontrada', 404);
     }
-  }
 
-  const ex = await q1<{ id: number }>(
-    `SELECT id FROM itens_comanda
-     WHERE comanda_id=? AND product_id=? AND tenant_id=?
-       AND observation IS NOT DISTINCT FROM ?
-       AND variation_id IS NOT DISTINCT FROM ?
-       AND selecoes_json IS NOT DISTINCT FROM ?`,
-    [comanda.id, item.product_id, tenantId, item.observation, item.variation_id, item.selecoes_json]
-  );
-
-  if (ex) {
-    await qRun('UPDATE itens_comanda SET quantity=quantity+? WHERE id=? AND tenant_id=?', [
-      item.quantity,
-      ex.id,
-      tenantId,
-    ]);
-  } else {
-    await qInsert(
-      'INSERT INTO itens_comanda (comanda_id,product_id,product_name,quantity,price_at_time,tenant_id,observation,variation_id,selecoes_json) VALUES (?,?,?,?,?,?,?,?,?)',
-      [
-        comanda.id,
-        item.product_id,
-        item.product_name,
-        item.quantity,
-        item.price_at_time,
-        tenantId,
-        item.observation,
-        item.variation_id,
-        item.selecoes_json,
-      ]
+    let comanda = await txQ1<{ id: number }>(
+      client,
+      "SELECT id FROM comandas WHERE mesa_id=? AND status='aberta' AND tenant_id=? LIMIT 1",
+      [mesaId, tenantId]
     );
-  }
+    if (!comanda) {
+      await txRun(client, "UPDATE mesas SET status='aberta', opened_at=NOW() WHERE id=? AND tenant_id=?", [
+        mesaId,
+        tenantId,
+      ]);
+      const cid = await txInsert(client, "INSERT INTO comandas (mesa_id,tenant_id,status) VALUES (?,?,'aberta')", [
+        mesaId,
+        tenantId,
+      ]);
+      comanda = await txQ1<{ id: number }>(client, 'SELECT id FROM comandas WHERE id=?', [cid]);
+      if (!comanda) {
+        throw new AppError('Falha ao abrir comanda', 500);
+      }
+    }
+
+    const ex = await txQ1<{ id: number }>(
+      client,
+      `SELECT id FROM itens_comanda
+       WHERE comanda_id=? AND product_id=? AND tenant_id=?
+         AND observation IS NOT DISTINCT FROM ?
+         AND variation_id IS NOT DISTINCT FROM ?
+         AND selecoes_json IS NOT DISTINCT FROM ?
+       FOR UPDATE`,
+      [comanda.id, item.product_id, tenantId, item.observation, item.variation_id, item.selecoes_json]
+    );
+
+    if (ex) {
+      await txRun(client, 'UPDATE itens_comanda SET quantity=quantity+? WHERE id=? AND tenant_id=?', [
+        item.quantity,
+        ex.id,
+        tenantId,
+      ]);
+    } else {
+      await txInsert(
+        client,
+        'INSERT INTO itens_comanda (comanda_id,product_id,product_name,quantity,price_at_time,tenant_id,observation,variation_id,selecoes_json) VALUES (?,?,?,?,?,?,?,?,?)',
+        [
+          comanda.id,
+          item.product_id,
+          item.product_name,
+          item.quantity,
+          item.price_at_time,
+          tenantId,
+          item.observation,
+          item.variation_id,
+          item.selecoes_json,
+        ]
+      );
+    }
+
+    return comanda.id;
+  });
 
   return {
-    comanda_id: comanda.id,
+    comanda_id: comandaId,
     mesa_id: mesaId,
     quantity_added: item.quantity,
     product_id: item.product_id,
