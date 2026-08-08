@@ -1,6 +1,6 @@
-import React, { Fragment } from 'react';
+import React, { Fragment, useMemo } from 'react';
 import { AnimatePresence } from 'motion/react';
-import { buildDeliveryCardapioTheme } from '../segments/delivery/deliveryCardapioTheme';
+import { buildDeliveryCardapioTheme, type DeliveryCardapioThemeMode } from '../segments/delivery/deliveryCardapioTheme';
 import { CardapioThemeShell } from '../segments/delivery/DeliveryCardapioThemeContext';
 import {
   ProductOptionsModal,
@@ -18,9 +18,14 @@ type POSProductOptionsDialogProps = {
   loadComboComponenteOpcoes?: (
     productId: number
   ) => Promise<Pick<ProductOptionsProduto, 'grupos_opcao' | 'variacoes_vendaveis'> | null>;
+  /**
+   * Tema visual do modal. Padrão 'dark_premium' (ciano/âmbar, usado no PDV/balcão).
+   * Telas com identidade vermelha (ex.: Mesas/Garçom, cores #EA1D2C) devem passar
+   * 'light_red' para herdar o acento vermelho já existente no tema, mantendo o
+   * mesmo fundo escuro (zinc-950) — sem duplicar estilos nem criar tema novo.
+   */
+  themeMode?: DeliveryCardapioThemeMode;
 };
-
-const posProductOptionsTheme = buildDeliveryCardapioTheme('dark_premium');
 
 export default function POSProductOptionsDialog({
   produto,
@@ -29,7 +34,9 @@ export default function POSProductOptionsDialog({
   carregandoOpcoes = false,
   resolveComboComponente,
   loadComboComponenteOpcoes,
+  themeMode = 'dark_premium',
 }: POSProductOptionsDialogProps) {
+  const posProductOptionsTheme = useMemo(() => buildDeliveryCardapioTheme(themeMode), [themeMode]);
   return (
     <CardapioThemeShell theme={posProductOptionsTheme}>
       <AnimatePresence>

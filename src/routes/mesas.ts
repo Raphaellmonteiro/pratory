@@ -341,7 +341,12 @@ async function syncKdsItem(
   try {
     const productId = line.product_id;
     const produto = await q1('SELECT * FROM produtos WHERE id=? AND tenant_id=?', [productId, tenantId]);
-    const needsPrep = produto ? resolveRequiresPreparation(produto) : true;
+    // Combo (ex.: um item "Aves" com pratos/acompanhamentos dentro) sempre vai
+    // pra barra de operações, mesmo que o produto-container em si não esteja
+    // marcado como "requer preparo" — quem carrega esse flag corretamente
+    // configurado costuma ser cada componente do combo, não o combo em si.
+    const isCombo = produto ? Number((produto as any).is_combo) === 1 : false;
+    const needsPrep = produto ? (resolveRequiresPreparation(produto) || isCombo) : true;
     if (!needsPrep) return;
     const mesa = await q1('SELECT numero FROM mesas WHERE id=? AND tenant_id=?', [mesaId, tenantId]);
     if (!mesa) return;

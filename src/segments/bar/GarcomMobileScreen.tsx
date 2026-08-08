@@ -796,8 +796,15 @@ export default function GarcomMobileScreen({ qrToken }: { qrToken: string }) {
               ) : (
                 <div className="space-y-1.5">
                   {itens.map((it) => (
-                    <div key={it.id} className="flex items-center justify-between text-sm gap-2">
-                      <span className="text-zinc-300 min-w-0 truncate">{it.quantity}x {it.product_name}</span>
+                    <div key={it.id} className="flex items-start justify-between text-sm gap-2">
+                      <div className="min-w-0">
+                        <span className="text-zinc-300 block truncate">{it.quantity}x {it.product_name}</span>
+                        {it.observation && (
+                          <span className="text-zinc-500 text-xs block leading-snug mt-0.5 whitespace-pre-line">
+                            {it.observation}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-zinc-400">{fmtBRL(it.price_at_time * it.quantity)}</span>
                         <button
@@ -932,6 +939,7 @@ export default function GarcomMobileScreen({ qrToken }: { qrToken: string }) {
           onAdicionar={applyModalItemToPedido}
           resolveComboComponente={resolveComboComponenteGarcom}
           loadComboComponenteOpcoes={loadComboComponenteOpcoesGarcom}
+          themeMode="light_red"
         />
       )}
       </>
