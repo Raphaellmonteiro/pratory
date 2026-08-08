@@ -690,15 +690,21 @@ export const authenticateTokenOrGarcomTemp = async (req: Request, res: Response,
 
 /**
  * Aplicado só nas rotas de /mesas: quando a sessão veio do QR temporário do
- * garçom, permite listar mesas, ver comanda, abrir mesa, lançar/editar/remover
- * itens, pedir a conta (avisar o balcão) e fechar mesa (finalizar pagamento)
- * — nunca reconfigurar mesas nem gerar novo QR.
+ * garçom, permite listar mesas, ver comanda, abrir mesa, ver os grupos de
+ * adicionais/combo de um produto, lançar/editar/remover itens, pedir a conta
+ * (avisar o balcão) e fechar mesa (finalizar pagamento) — nunca reconfigurar
+ * mesas nem gerar novo QR.
  */
 export function restrictGarcomTempScope(req: Request, res: Response, next: NextFunction) {
   if (!(req as any).isGarcomTemp) return next();
 
   const allowed =
-    (req.method === 'GET' && (req.path === '/' || req.path === '/produtos-garcom' || /^\/[^/]+\/comanda$/.test(req.path))) ||
+    (req.method === 'GET' && (
+      req.path === '/'
+      || req.path === '/produtos-garcom'
+      || /^\/produtos-garcom\/[^/]+\/opcoes$/.test(req.path)
+      || /^\/[^/]+\/comanda$/.test(req.path)
+    )) ||
     (req.method === 'PUT' && (/^\/[^/]+\/abrir$/.test(req.path) || /^\/comanda\/item\/[^/]+$/.test(req.path))) ||
     (req.method === 'DELETE' && /^\/comanda\/item\/[^/]+$/.test(req.path)) ||
     (req.method === 'POST' && (/^\/[^/]+\/comanda\/adicionar$/.test(req.path) || /^\/[^/]+\/comanda\/finalizar$/.test(req.path) || /^\/[^/]+\/solicitar-conta$/.test(req.path)));

@@ -23,6 +23,8 @@ import { tenantHasInventoryFeature } from '../services/tenantPlan';
 import { notifyTenantOrderStreams } from '../sse';
 import { coerceDeliveryConfigRow } from '../utils/deliveryConfigPersist';
 import { signGarcomTempToken } from '../middleware';
+import { loadProdutoGruposOpcao, mapComboGruposPublic } from './products';
+import { loadComboGruposForProduto } from '../services/productComboValidation';
 
 const TZ = 'America/Sao_Paulo';
 
@@ -537,31 +539,82 @@ export function createMesasRouter() {
   // GET /api/mesas/produtos-garcom?q=... — busca de produtos para o garçom
   // adicionar itens à comanda pelo QR temporário (mesmo formato usado em
   // /api/atendimento/produtos, restrito ao essencial para o cardápio rápido).
+  // `tem_opcoes` indica se o produto tem grupos de adicionais/combo — o
+  // celular do garçom usa essa flag pra decidir se abre o modal de
+  // personalização (grupos) antes de lançar o item, ou se manda direto.
   router.get('/produtos-garcom', async (req: Request, res) => {
     try {
       const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
       const term = `%${q}%`;
+      const selectSql = `SELECT p.id, p.name, p.price, p.category, COALESCE(p.is_combo,0) AS is_combo,
+             (
+               EXISTS (SELECT 1 FROM produto_grupos_opcao pgo WHERE pgo.produto_id = p.id AND pgo.tenant_id = p.tenant_id)
+               OR (
+                 COALESCE(p.is_combo,0) = 1
+                 AND EXISTS (SELECT 1 FROM produto_combo_grupos pcg WHERE pcg.produto_id = p.id AND pcg.tenant_id = p.tenant_id)
+               )
+             ) AS tem_opcoes
+             FROM produtos p`;
       const rows = q.length >= 2
         ? await qAll(
-            `SELECT id, name, price, category, COALESCE(is_combo,0) AS is_combo
-             FROM produtos
-             WHERE tenant_id=?
-               AND COALESCE(active,0)=1
-               AND (name ILIKE ? OR category ILIKE ?)
-             ORDER BY category ASC, name ASC
+            `${selectSql}
+             WHERE p.tenant_id=?
+               AND COALESCE(p.active,0)=1
+               AND (p.name ILIKE ? OR p.category ILIKE ?)
+             ORDER BY p.category ASC, p.name ASC
              LIMIT 60`,
             [req.tenantId, term, term]
           )
         : await qAll(
-            `SELECT id, name, price, category, COALESCE(is_combo,0) AS is_combo
-             FROM produtos
-             WHERE tenant_id=?
-               AND COALESCE(active,0)=1
-             ORDER BY category ASC, name ASC
+            `${selectSql}
+             WHERE p.tenant_id=?
+               AND COALESCE(p.active,0)=1
+             ORDER BY p.category ASC, p.name ASC
              LIMIT 300`,
             [req.tenantId]
           );
       res.json(rows);
+    } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
+  });
+
+  // GET /api/mesas/produtos-garcom/:id/opcoes — grupos de adicionais, combo e
+  // variações vendáveis de um produto (mesmo contrato de `/products/:id/pdv-opcoes`,
+  // mas exposto aqui porque o QR temporário do garçom não tem acesso a
+  // `/api/products`). Usado pra abrir o mesmo modal de personalização do
+  // PDV/cardápio antes de lançar o item na comanda da mesa.
+  router.get('/produtos-garcom/:id/opcoes', async (req: Request, res) => {
+    try {
+      const productId = Number(req.params.id);
+      if (!Number.isInteger(productId) || productId <= 0) {
+        return res.status(400).json({ error: 'Produto inválido' });
+      }
+
+      const produto = await q1<{ id: number; is_combo: number }>(
+        'SELECT id, COALESCE(is_combo,0) AS is_combo FROM produtos WHERE id=? AND tenant_id=?',
+        [productId, req.tenantId]
+      );
+      if (!produto) return res.status(404).json({ error: 'Produto não encontrado' });
+
+      const [variacoesRows, gruposOpcao, comboGruposRaw] = await Promise.all([
+        qAll(
+          `SELECT id, produto_id, nome, preco, codigo_barras, ativo, ordem, ingrediente_id
+           FROM produto_variacoes_vendaveis
+           WHERE tenant_id=?
+             AND produto_id=?
+             AND ativo=1
+           ORDER BY ordem ASC, nome ASC`,
+          [req.tenantId, productId]
+        ),
+        loadProdutoGruposOpcao(req.tenantId as number, productId, { onlyActiveItens: true }),
+        loadComboGruposForProduto(req.tenantId as number, productId, true),
+      ]);
+
+      res.json({
+        variacoes_vendaveis: variacoesRows,
+        grupos_opcao: gruposOpcao,
+        combo_grupos: mapComboGruposPublic(comboGruposRaw, true),
+        is_combo: Number(produto.is_combo) === 1,
+      });
     } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
   });
 

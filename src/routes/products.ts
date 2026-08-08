@@ -42,53 +42,57 @@ async function produtoTemItensEmPedidos(tenantId: number, productId: number): Pr
   return Boolean(row);
 }
 
+/** Carrega os grupos de opções (adicionais) de um produto, com os itens de cada grupo.
+ *  Exportada pra ser reaproveitada fora do router de produtos (ex.: `/api/mesas/produtos-garcom`,
+ *  que usa o mesmo contrato pra montar o modal de opções na tela do garçom). */
+export async function loadProdutoGruposOpcao(
+  tenantId: number,
+  productId: number,
+  opts?: { onlyActiveItens?: boolean }
+) {
+  const onlyActiveItens = opts?.onlyActiveItens !== false;
+  const itensActiveSql = onlyActiveItens ? ' AND ativo=1' : '';
+  const grupos = await qAll(
+    'SELECT * FROM produto_grupos_opcao WHERE produto_id=? AND tenant_id=? ORDER BY ordem ASC, id ASC',
+    [productId, tenantId]
+  );
+  const result: any[] = [];
+  for (const g of grupos) {
+    const itens = await qAll(
+      `SELECT * FROM produto_opcao_itens WHERE grupo_id=? AND tenant_id=?${itensActiveSql} ORDER BY ordem ASC, id ASC`,
+      [g.id, tenantId]
+    );
+    result.push({ ...g, itens });
+  }
+  return result;
+}
+
+/** Mesma exportação: usada pelo `/pdv-opcoes` do PDV e pelo endpoint equivalente do garçom em mesas.ts. */
+export function mapComboGruposPublic(
+  rows: Awaited<ReturnType<typeof loadComboGruposForProduto>>,
+  forCustomer: boolean
+) {
+  return rows
+    .filter((g) => (forCustomer ? Number(g.ativo) === 1 : true))
+    .filter((g) => (forCustomer ? g.produtos.length > 0 : true))
+    .map((g) => ({
+      id: g.id,
+      nome: g.nome,
+      ordem: g.ordem,
+      obrigatorio: Number(g.obrigatorio) === 1,
+      qtd_min: Math.max(0, Number(g.qtd_min || 0)),
+      qtd_max: Math.max(0, Number(g.qtd_max || 0)),
+      ativo: Number(g.ativo) === 1,
+      produtos: g.produtos.map((p) => ({
+        link_id: p.id,
+        product_id: p.product_id,
+        name: p.name,
+      })),
+    }));
+}
+
 export function createProductsRouter() {
   const router = Router();
-
-  async function loadProdutoGruposOpcao(
-    tenantId: number,
-    productId: number,
-    opts?: { onlyActiveItens?: boolean }
-  ) {
-    const onlyActiveItens = opts?.onlyActiveItens !== false;
-    const itensActiveSql = onlyActiveItens ? ' AND ativo=1' : '';
-    const grupos = await qAll(
-      'SELECT * FROM produto_grupos_opcao WHERE produto_id=? AND tenant_id=? ORDER BY ordem ASC, id ASC',
-      [productId, tenantId]
-    );
-    const result: any[] = [];
-    for (const g of grupos) {
-      const itens = await qAll(
-        `SELECT * FROM produto_opcao_itens WHERE grupo_id=? AND tenant_id=?${itensActiveSql} ORDER BY ordem ASC, id ASC`,
-        [g.id, tenantId]
-      );
-      result.push({ ...g, itens });
-    }
-    return result;
-  }
-
-  function mapComboGruposPublic(
-    rows: Awaited<ReturnType<typeof loadComboGruposForProduto>>,
-    forCustomer: boolean
-  ) {
-    return rows
-      .filter((g) => (forCustomer ? Number(g.ativo) === 1 : true))
-      .filter((g) => (forCustomer ? g.produtos.length > 0 : true))
-      .map((g) => ({
-        id: g.id,
-        nome: g.nome,
-        ordem: g.ordem,
-        obrigatorio: Number(g.obrigatorio) === 1,
-        qtd_min: Math.max(0, Number(g.qtd_min || 0)),
-        qtd_max: Math.max(0, Number(g.qtd_max || 0)),
-        ativo: Number(g.ativo) === 1,
-        produtos: g.produtos.map((p) => ({
-          link_id: p.id,
-          product_id: p.product_id,
-          name: p.name,
-        })),
-      }));
-  }
 
   router.use((req, res, next) => {
     const canReadOperationalProducts = req.method === 'GET'

@@ -13,7 +13,15 @@
  */
 
 import React from 'react';
-import { Search, Plus, Minus, ArrowLeft, AlertCircle, Loader2, Trash2, Wallet, X, Check, Bell } from 'lucide-react';
+import { Search, Plus, Minus, ArrowLeft, AlertCircle, Loader2, Trash2, Wallet, X, Check, Bell, Sparkles } from 'lucide-react';
+import POSProductOptionsDialog from '../../shared/POSProductOptionsDialog';
+import {
+  type ProductOptionsProduto,
+  type ProductOptionsCartItem,
+  type GrupoOpcao,
+  type VariacaoVendavel,
+  type ComboGrupoUi,
+} from '../../shared/ProductOptionsModal';
 
 type Mesa = {
   id: number;
@@ -40,6 +48,10 @@ type ProdutoHit = {
   name: string;
   price: number;
   category: string;
+  is_combo?: number | boolean;
+  /** Produto tem grupo de adicionais ou combo — precisa abrir o modal de
+   *  personalização antes de lançar na comanda (ver `/produtos-garcom`). */
+  tem_opcoes?: boolean;
 };
 
 type Payment = { method: string; amount_paid: number };
@@ -49,6 +61,93 @@ const GARCOM_NOME_STORAGE_PREFIX = 'garcom_nome_';
 
 function fmtBRL(n: number) {
   return Number(n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+/** Normaliza os grupos de adicionais vindos da API pro formato estrito que o
+ *  modal espera — mesma lógica usada no PDV (`POSScreen.tsx`), pra manter o
+ *  mesmo comportamento em qualquer tela que lança item com opções. */
+function normalizeGruposGarcom(raw: unknown): GrupoOpcao[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((g: any) => g != null && g.ativo !== 0 && g.ativo !== false)
+    .map((g: any) => ({
+      id: Number(g.id),
+      nome: String(g.nome || ''),
+      tipo: (g.tipo === 'checkbox' || g.tipo === 'quantidade' ? g.tipo : 'radio') as GrupoOpcao['tipo'],
+      min_selecoes: Number(g.min_selecoes ?? 0),
+      max_selecoes: Number(g.max_selecoes ?? 0),
+      obrigatorio: !!(g.obrigatorio === 1 || g.obrigatorio === true),
+      modo_preco: g.modo_preco === 'final' ? ('final' as const) : ('adicional' as const),
+      itens: (Array.isArray(g.itens) ? g.itens : [])
+        .filter((it: any) => it != null && it.ativo !== 0 && it.ativo !== false)
+        .map((it: any) => ({
+          id: Number(it.id),
+          nome: String(it.nome || ''),
+          preco_adicional: Number(it.preco_adicional ?? 0),
+        })),
+    }))
+    .filter((g) => g.itens.length > 0);
+}
+
+type OpcoesApiPayload = {
+  grupos: GrupoOpcao[];
+  variacoes: VariacaoVendavel[];
+  combo_grupos: ComboGrupoUi[];
+  is_combo: boolean;
+};
+
+/** Mesma normalização do GET unificado `pdv-opcoes` do PDV, aplicada aqui à
+ *  resposta de `/api/mesas/produtos-garcom/:id/opcoes`. */
+function parseOpcoesApiResponse(data: {
+  variacoes_vendaveis?: unknown;
+  grupos_opcao?: unknown;
+  combo_grupos?: unknown;
+  is_combo?: unknown;
+}): OpcoesApiPayload {
+  const vars = data?.variacoes_vendaveis;
+  const ativas = Array.isArray(vars) ? vars.filter((v: any) => Number(v?.ativo) === 1) : [];
+  const variacoes: VariacaoVendavel[] = ativas.map((v: any) => ({
+    id: Number(v.id),
+    nome: String(v.nome || ''),
+    preco: Number(v.preco ?? 0),
+  }));
+  const comboRaw = Array.isArray(data?.combo_grupos) ? data.combo_grupos : [];
+  const combo_grupos: ComboGrupoUi[] = comboRaw.map((g: any) => ({
+    id: Number(g.id),
+    nome: String(g.nome || ''),
+    ordem: Number(g.ordem ?? 0),
+    obrigatorio: !!(g.obrigatorio === true || g.obrigatorio === 1),
+    qtd_min: Math.max(0, Number(g.qtd_min ?? 0)),
+    qtd_max: Math.max(0, Number(g.qtd_max ?? 0)),
+    produtos: Array.isArray(g.produtos)
+      ? g.produtos.map((p: any) => ({
+          link_id: Number(p.link_id ?? p.id),
+          product_id: Number(p.product_id),
+          name: String(p.name || ''),
+        }))
+      : [],
+  }));
+  const is_combo = data?.is_combo === true || Number(data?.is_combo) === 1;
+  return { grupos: normalizeGruposGarcom(data?.grupos_opcao), variacoes, combo_grupos, is_combo };
+}
+
+function buildProdutoOptionsPayload(
+  produto: ProdutoHit,
+  grupos: GrupoOpcao[],
+  variacoes: VariacaoVendavel[],
+  extras?: { is_combo?: boolean; combo_grupos?: ComboGrupoUi[] }
+): ProductOptionsProduto {
+  const isCombo = extras?.is_combo === true || Number(produto.is_combo) === 1;
+  return {
+    id: produto.id,
+    name: produto.name,
+    price: produto.price,
+    category: produto.category,
+    grupos_opcao: grupos,
+    variacoes_vendaveis: variacoes,
+    is_combo: isCombo ? 1 : 0,
+    combo_grupos: Array.isArray(extras?.combo_grupos) ? extras!.combo_grupos : [],
+  };
 }
 
 export default function GarcomMobileScreen({ qrToken }: { qrToken: string }) {
@@ -99,6 +198,16 @@ export default function GarcomMobileScreen({ qrToken }: { qrToken: string }) {
   const [adicionando, setAdicionando] = React.useState<number | null>(null);
   const [removendo, setRemovendo] = React.useState<number | null>(null);
   const [qty, setQty] = React.useState<Record<number, number>>({});
+
+  // ── Modal de opções/adicionais (produtos com grupo ou combo) ────────────
+  // Mesmo componente usado no PDV (`POSProductOptionsDialog` + `ProductOptionsModal`),
+  // só que buscando os grupos por `/api/mesas/produtos-garcom/:id/opcoes`
+  // (rota liberada pro QR temporário do garçom).
+  const [opcaoModalProduto, setOpcaoModalProduto] = React.useState<ProductOptionsProduto | null>(null);
+  const [opcaoModalBaseProduct, setOpcaoModalBaseProduct] = React.useState<ProdutoHit | null>(null);
+  const [carregandoOpcoesProduto, setCarregandoOpcoesProduto] = React.useState(false);
+  const opcaoModalLoadSeqRef = React.useRef(0);
+  const opcoesCacheRef = React.useRef<Map<number, OpcoesApiPayload>>(new Map());
 
   // ── Fechar mesa (forma de pagamento) ────────────────────────────────────
   const [fechandoMesa, setFechandoMesa] = React.useState(false);
@@ -249,6 +358,120 @@ export default function GarcomMobileScreen({ qrToken }: { qrToken: string }) {
       setAdicionando(null);
     }
   };
+
+  // Produto com grupo de adicionais/combo: abre o mesmo modal de
+  // personalização do PDV antes de lançar o item, buscando (e cacheando) os
+  // grupos pela rota liberada pro QR do garçom.
+  const openProductCustomizeFlow = React.useCallback(async (produto: ProdutoHit) => {
+    const seq = ++opcaoModalLoadSeqRef.current;
+    setOpcaoModalBaseProduct(produto);
+
+    const cached = opcoesCacheRef.current.get(produto.id);
+    if (cached) {
+      setOpcaoModalProduto(
+        buildProdutoOptionsPayload(produto, cached.grupos, cached.variacoes, {
+          is_combo: cached.is_combo,
+          combo_grupos: cached.combo_grupos,
+        })
+      );
+      setCarregandoOpcoesProduto(false);
+      return;
+    }
+
+    setOpcaoModalProduto(buildProdutoOptionsPayload(produto, [], [], { is_combo: false, combo_grupos: [] }));
+    setCarregandoOpcoesProduto(true);
+    try {
+      const res = await fetch(`/api/mesas/produtos-garcom/${produto.id}/opcoes`, { headers });
+      if (res.status === 401 || res.status === 403) { setExpired(true); return; }
+      if (seq !== opcaoModalLoadSeqRef.current) return;
+      let payload: OpcoesApiPayload = { grupos: [], variacoes: [], combo_grupos: [], is_combo: false };
+      if (res.ok) {
+        const data = await res.json();
+        payload = parseOpcoesApiResponse(data);
+        opcoesCacheRef.current.set(produto.id, payload);
+      }
+      setOpcaoModalProduto(
+        buildProdutoOptionsPayload(produto, payload.grupos, payload.variacoes, {
+          is_combo: payload.is_combo,
+          combo_grupos: payload.combo_grupos,
+        })
+      );
+    } catch {
+      if (seq !== opcaoModalLoadSeqRef.current) return;
+      setOpcaoModalProduto(buildProdutoOptionsPayload(produto, [], [], { is_combo: false, combo_grupos: [] }));
+    } finally {
+      if (seq === opcaoModalLoadSeqRef.current) setCarregandoOpcoesProduto(false);
+    }
+  }, [headers]);
+
+  const closeOpcaoModal = React.useCallback(() => {
+    opcaoModalLoadSeqRef.current += 1;
+    setCarregandoOpcoesProduto(false);
+    setOpcaoModalProduto(null);
+    setOpcaoModalBaseProduct(null);
+  }, []);
+
+  // Resolve/carrega opções de um componente dentro de um combo — mesmo
+  // contrato do PDV (`resolveComboComponentePOS`/`loadComboComponenteOpcoesPOS`).
+  const resolveComboComponenteGarcom = React.useCallback(
+    (productId: number) => {
+      const base = catalogo.find((p) => p.id === productId);
+      if (!base) return null;
+      const cached = opcoesCacheRef.current.get(productId);
+      return buildProdutoOptionsPayload(base, cached?.grupos ?? [], cached?.variacoes ?? [], {
+        is_combo: false,
+        combo_grupos: [],
+      });
+    },
+    [catalogo]
+  );
+
+  const loadComboComponenteOpcoesGarcom = React.useCallback(
+    async (productId: number) => {
+      const res = await fetch(`/api/mesas/produtos-garcom/${productId}/opcoes`, { headers });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const payload = parseOpcoesApiResponse(data);
+      opcoesCacheRef.current.set(productId, payload);
+      return { grupos_opcao: payload.grupos, variacoes_vendaveis: payload.variacoes };
+    },
+    [headers]
+  );
+
+  // Item confirmado no modal (com grupo/combo escolhidos): lança na comanda
+  // já com `variation_id`/`observation`/`selecoes`, igual ao PDV.
+  const applyModalItemToPedido = React.useCallback(async (item: ProductOptionsCartItem) => {
+    const base = opcaoModalBaseProduct;
+    opcaoModalLoadSeqRef.current += 1;
+    setCarregandoOpcoesProduto(false);
+    setOpcaoModalProduto(null);
+    setOpcaoModalBaseProduct(null);
+    if (!base || !selectedMesa) return;
+    setAdicionando(base.id);
+    try {
+      const res = await fetch(`/api/mesas/${selectedMesa.id}/comanda/adicionar`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          product_id: item.id,
+          product_name: item.name,
+          price_at_time: item.preco_final,
+          quantity: item.qty,
+          variation_id: item.variation_id ?? null,
+          observation: item.obs_opcoes?.trim() || undefined,
+          selecoes: item.selecoes,
+        }),
+      });
+      if (res.status === 401 || res.status === 403) { setExpired(true); return; }
+      if (res.ok) {
+        const mesaAberta = { ...selectedMesa, status: 'aberta' as const };
+        setSelectedMesa(mesaAberta);
+        await fetchComanda(mesaAberta);
+      }
+    } finally {
+      setAdicionando(null);
+    }
+  }, [opcaoModalBaseProduct, selectedMesa, headers, fetchComanda]);
 
   const total = itens.reduce((acc, it) => acc + Number(it.price_at_time || 0) * Number(it.quantity || 0), 0);
   const totalComExtras = comandaInfo?.total_com_extras ?? total;
@@ -505,6 +728,7 @@ export default function GarcomMobileScreen({ qrToken }: { qrToken: string }) {
   // ── Tela de detalhe da mesa ─────────────────────────────────────────────
   if (selectedMesa) {
     return (
+      <>
       <div className="min-h-screen w-full bg-zinc-950 flex flex-col">
         <div className="sticky top-0 z-10 bg-zinc-950 border-b border-zinc-800 px-4 py-3 flex items-center gap-3">
           <button
@@ -643,34 +867,55 @@ export default function GarcomMobileScreen({ qrToken }: { qrToken: string }) {
                 return (
                   <div key={p.id} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-zinc-900 border border-zinc-800">
                     <div className="min-w-0">
-                      <p className="text-white text-sm font-semibold truncate">{p.name}</p>
+                      <p className="text-white text-sm font-semibold truncate flex items-center gap-1.5">
+                        {p.name}
+                        {p.tem_opcoes && (
+                          <span
+                            title="Tem opções/adicionais"
+                            className="shrink-0 w-4 h-4 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center"
+                          >
+                            <Sparkles className="w-2.5 h-2.5" />
+                          </span>
+                        )}
+                      </p>
                       <p className="text-zinc-500 text-xs">{fmtBRL(p.price)}</p>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    {p.tem_opcoes ? (
                       <button
                         type="button"
-                        onClick={() => setQty((prev) => ({ ...prev, [p.id]: Math.max(1, (prev[p.id] || 1) - 1) }))}
-                        className="w-7 h-7 flex items-center justify-center rounded-full bg-zinc-800 text-zinc-300"
-                      >
-                        <Minus className="w-3.5 h-3.5" />
-                      </button>
-                      <span className="text-white text-sm font-bold w-4 text-center">{q}</span>
-                      <button
-                        type="button"
-                        onClick={() => setQty((prev) => ({ ...prev, [p.id]: (prev[p.id] || 1) + 1 }))}
-                        className="w-7 h-7 flex items-center justify-center rounded-full bg-zinc-800 text-zinc-300"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleAdicionar(p)}
+                        onClick={() => openProductCustomizeFlow(p)}
                         disabled={adicionando === p.id}
-                        className="px-3 h-7 rounded-full bg-[#EA1D2C] hover:bg-[#C9101E] text-white text-xs font-bold disabled:opacity-50"
+                        className="shrink-0 px-3 h-8 rounded-full bg-[#EA1D2C] hover:bg-[#C9101E] text-white text-xs font-bold disabled:opacity-50"
                       >
-                        {adicionando === p.id ? '...' : 'Add'}
+                        {adicionando === p.id ? '...' : 'Ver opções'}
                       </button>
-                    </div>
+                    ) : (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setQty((prev) => ({ ...prev, [p.id]: Math.max(1, (prev[p.id] || 1) - 1) }))}
+                          className="w-7 h-7 flex items-center justify-center rounded-full bg-zinc-800 text-zinc-300"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="text-white text-sm font-bold w-4 text-center">{q}</span>
+                        <button
+                          type="button"
+                          onClick={() => setQty((prev) => ({ ...prev, [p.id]: (prev[p.id] || 1) + 1 }))}
+                          className="w-7 h-7 flex items-center justify-center rounded-full bg-zinc-800 text-zinc-300"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAdicionar(p)}
+                          disabled={adicionando === p.id}
+                          className="px-3 h-7 rounded-full bg-[#EA1D2C] hover:bg-[#C9101E] text-white text-xs font-bold disabled:opacity-50"
+                        >
+                          {adicionando === p.id ? '...' : 'Add'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -678,6 +923,18 @@ export default function GarcomMobileScreen({ qrToken }: { qrToken: string }) {
           </>
         )}
       </div>
+
+      {opcaoModalProduto && (
+        <POSProductOptionsDialog
+          produto={opcaoModalProduto}
+          carregandoOpcoes={carregandoOpcoesProduto}
+          onClose={closeOpcaoModal}
+          onAdicionar={applyModalItemToPedido}
+          resolveComboComponente={resolveComboComponenteGarcom}
+          loadComboComponenteOpcoes={loadComboComponenteOpcoesGarcom}
+        />
+      )}
+      </>
     );
   }
 
