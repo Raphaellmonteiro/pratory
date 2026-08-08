@@ -13,7 +13,7 @@
  */
 
 import React from 'react';
-import { Search, Plus, Minus, ArrowLeft, AlertCircle, Loader2, Trash2, Wallet, X, Check } from 'lucide-react';
+import { Search, Plus, Minus, ArrowLeft, AlertCircle, Loader2, Trash2, Wallet, X, Check, Bell } from 'lucide-react';
 
 type Mesa = {
   id: number;
@@ -107,6 +107,11 @@ export default function GarcomMobileScreen({ qrToken }: { qrToken: string }) {
   const [payAmount, setPayAmount] = React.useState('');
   const [finalizando, setFinalizando] = React.useState(false);
   const [finalizarErro, setFinalizarErro] = React.useState<string | null>(null);
+
+  // ── Pedir a conta (avisa o balcão, sem fechar a mesa) ───────────────────
+  const [pedindoConta, setPedindoConta] = React.useState(false);
+  const [contaPedidaMsg, setContaPedidaMsg] = React.useState<string | null>(null);
+  const contaPedidaTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchMesas = React.useCallback(async () => {
     try {
@@ -270,6 +275,33 @@ export default function GarcomMobileScreen({ qrToken }: { qrToken: string }) {
   const handleRemoverPagamento = (index: number) => {
     setPayments((prev) => prev.filter((_, i) => i !== index));
   };
+
+  // Avisa o balcão (quem estiver com o painel de Mesas aberto) que o cliente
+  // pediu a conta. Não fecha a mesa nem lança pagamento — só dispara o aviso
+  // pra alguém confirmar e imprimir a comanda.
+  const handlePedirConta = async () => {
+    if (!selectedMesa) return;
+    setPedindoConta(true);
+    if (contaPedidaTimeoutRef.current) clearTimeout(contaPedidaTimeoutRef.current);
+    setContaPedidaMsg(null);
+    try {
+      const res = await fetch(`/api/mesas/${selectedMesa.id}/solicitar-conta`, { method: 'POST', headers });
+      if (res.status === 401 || res.status === 403) { setExpired(true); return; }
+      const data = await res.json().catch(() => ({}));
+      setContaPedidaMsg(
+        res.ok && data?.success ? 'Conta pedida! O balcão foi avisado.' : (data?.message || 'Não foi possível avisar o balcão.')
+      );
+    } catch {
+      setContaPedidaMsg('Erro ao pedir a conta. Tente novamente.');
+    } finally {
+      setPedindoConta(false);
+      contaPedidaTimeoutRef.current = setTimeout(() => setContaPedidaMsg(null), 4000);
+    }
+  };
+
+  React.useEffect(() => () => {
+    if (contaPedidaTimeoutRef.current) clearTimeout(contaPedidaTimeoutRef.current);
+  }, []);
 
   const handleConfirmarFechamento = async () => {
     if (!selectedMesa) return;
@@ -489,16 +521,33 @@ export default function GarcomMobileScreen({ qrToken }: { qrToken: string }) {
             </p>
           </div>
           {selectedMesa.status === 'aberta' && itens.length > 0 && (
-            <button
-              type="button"
-              onClick={abrirFecharMesa}
-              className="shrink-0 h-9 px-3 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold uppercase tracking-wide flex items-center gap-1.5"
-            >
-              <Wallet className="w-3.5 h-3.5" />
-              Fechar mesa
-            </button>
+            <div className="shrink-0 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handlePedirConta}
+                disabled={pedindoConta}
+                className="h-9 px-3 rounded-full bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {pedindoConta ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Bell className="w-3.5 h-3.5" />}
+                Pedir conta
+              </button>
+              <button
+                type="button"
+                onClick={abrirFecharMesa}
+                className="h-9 px-3 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold uppercase tracking-wide flex items-center gap-1.5"
+              >
+                <Wallet className="w-3.5 h-3.5" />
+                Fechar mesa
+              </button>
+            </div>
           )}
         </div>
+
+        {contaPedidaMsg && (
+          <div className="px-4 py-2 bg-zinc-900 border-b border-zinc-800">
+            <p className="text-xs text-zinc-300">{contaPedidaMsg}</p>
+          </div>
+        )}
 
         {selectedMesa.status !== 'aberta' ? (
           <div className="flex-1 flex items-center justify-center px-6">

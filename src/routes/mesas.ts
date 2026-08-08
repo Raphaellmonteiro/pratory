@@ -1,4 +1,4 @@
-// src/routes/mesas.ts â€” mesas, comandas e sincronizaÃ§Ã£o KDS
+// src/routes/mesas.ts — mesas, comandas e sincronização KDS
 import { Router, Request } from 'express';
 import { q1, qAll, qRun, qInsert, withTx, txQ1, txQAll, txRun, txInsert } from '../db';
 import { pool } from '../db/pool';
@@ -42,7 +42,7 @@ function toFlag(value: unknown, fallback = false) {
 
   const normalized = String(value).trim().toLowerCase();
   if (['1', 'true', 'sim', 'yes', 'on'].includes(normalized)) return true;
-  if (['0', 'false', 'nao', 'nÃ£o', 'no', 'off'].includes(normalized)) return false;
+  if (['0', 'false', 'nao', 'não', 'no', 'off'].includes(normalized)) return false;
 
   return fallback;
 }
@@ -74,14 +74,14 @@ function buildComandaTotals(comanda: ComandaExtrasInput | null | undefined, subt
 
   if (valorTaxaServico > 0) {
     extras.push({
-      name: `Taxa de ServiÃ§o (${percentualLabel}%)`,
+      name: `Taxa de Serviço (${percentualLabel}%)`,
       value: valorTaxaServico,
     });
   }
 
   if (valorCouvert > 0) {
     extras.push({
-      name: `Couvert ArtÃ­stico (${extrasConfig.couvert_quantidade_pessoas} pessoa${extrasConfig.couvert_quantidade_pessoas > 1 ? 's' : ''})`,
+      name: `Couvert Artístico (${extrasConfig.couvert_quantidade_pessoas} pessoa${extrasConfig.couvert_quantidade_pessoas > 1 ? 's' : ''})`,
       value: valorCouvert,
     });
   }
@@ -148,13 +148,54 @@ function buildMesaComandaPayload(comanda: any, itens: any[]) {
 
 function buildActiveKdsOrderClause(alias?: string) {
   const prefix = alias ? `${alias}.` : '';
-  return `${prefix}cancelado_at IS NULL AND COALESCE(${prefix}status,'') NOT IN ('Entregue','cancelado','Cancelado','ConcluÃƒÂ­do','Concluido','concluido')`;
+  return `${prefix}cancelado_at IS NULL AND COALESCE(${prefix}status,'') NOT IN ('Entregue','cancelado','Cancelado','Concluído','Concluido','concluido')`;
 }
 
-// â”€â”€ Helper: baixa/estorno de estoque por produto â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Helper: baixa/estorno de estoque por produto ──────────────────────────
 function buildOperationalKdsOrderClause(alias?: string) {
   const prefix = alias ? `${alias}.` : '';
   return `${prefix}cancelado_at IS NULL AND LOWER(COALESCE(${prefix}status,'')) <> 'entregue' AND LOWER(COALESCE(${prefix}status,'')) <> 'cancelado' AND LOWER(COALESCE(${prefix}status,'')) NOT LIKE 'conclu%'`;
+}
+
+// ── Solicitações de conta (chamado do garçom via QR ou do cliente) ────────────
+// Quando o garçom (pelo celular, usando o QR temporário) ou o cliente pedem a
+// conta, é criado um aviso aqui e um evento é disparado por SSE para quem
+// estiver com o painel de Mesas aberto (o "balcão"/notebook). A pessoa no
+// balcão confirma e imprime a comanda a partir desse aviso.
+// Guardado em memória (por processo): é uma notificação efêmera, não histórico
+// fiscal — some sozinha em 30 min, ao ser confirmada ou ao a mesa ser fechada.
+// Obs.: se o back-end rodar em múltiplas instâncias, esse Map não é
+// compartilhado entre elas; para esse cenário, migrar para uma tabela.
+type SolicitacaoConta = {
+  mesaId: number;
+  mesaNumero: number;
+  solicitadoPor: string;
+  solicitadoEm: number;
+};
+const SOLICITACAO_CONTA_TTL_MS = 30 * 60 * 1000;
+const solicitacoesContaPorTenant = new Map<number, Map<number, SolicitacaoConta>>();
+
+function getSolicitacoesContaDoTenant(tenantId: number) {
+  let mapa = solicitacoesContaPorTenant.get(tenantId);
+  if (!mapa) {
+    mapa = new Map();
+    solicitacoesContaPorTenant.set(tenantId, mapa);
+  }
+  return mapa;
+}
+
+function listarSolicitacoesContaAtivas(tenantId: number): SolicitacaoConta[] {
+  const mapa = getSolicitacoesContaDoTenant(tenantId);
+  const agora = Date.now();
+  const ativas: SolicitacaoConta[] = [];
+  for (const [mesaId, item] of mapa.entries()) {
+    if (agora - item.solicitadoEm > SOLICITACAO_CONTA_TTL_MS) {
+      mapa.delete(mesaId);
+      continue;
+    }
+    ativas.push(item);
+  }
+  return ativas.sort((a, b) => a.solicitadoEm - b.solicitadoEm);
 }
 
 function handleMesasRouteError(res: any, error: unknown, context: string, meta: Record<string, unknown> = {}) {
@@ -221,7 +262,7 @@ function kdsLineFromComandaRow(row: {
   };
 }
 
-// â”€â”€ Sincroniza item entre comanda e pedido KDS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Sincroniza item entre comanda e pedido KDS ─────────────────────────────
 const KDS_SYNC_ERROR_TIPO = 'KDS_SYNC_ERROR';
 
 async function persistKdsSyncFailureAudit(params: {
@@ -307,7 +348,7 @@ async function syncKdsItem(
     if (kdsOrder) pedidoKdsId = Number(kdsOrder.id);
     if (!kdsOrder && mode === 'remove') return;
     if (!kdsOrder) {
-      // CORREÃ‡ÃƒO: Data baseada no fuso de SP para o order_number do KDS
+      // CORREÇÃO: Data baseada no fuso de SP para o order_number do KDS
       const dateObj = new Date(new Date().toLocaleString("en-US", { timeZone: TZ }));
       const y = String(dateObj.getFullYear()).slice(-2);
       const m = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -387,7 +428,7 @@ export function createMesasRouter() {
         FROM mesas m WHERE m.tenant_id=? ORDER BY m.numero ASC
       `, [req.tenantId]);
       
-      // CORREÃ‡ÃƒO: Converte valores de COUNT e SUM para Number
+      // CORREÇÃO: Converte valores de COUNT e SUM para Number
       res.json(rows.map((m: any) => {
         const subtotal = Number(m.subtotal_valor || 0);
         const totals = buildMesaFinanceSnapshotShared(m, subtotal);
@@ -423,6 +464,73 @@ export function createMesasRouter() {
         url: `${baseUrl}/m/garcom/${token}`,
         expires_in_minutes: 360,
       });
+    } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
+  });
+
+  // POST /api/mesas/:id/solicitar-conta — o garçom (pelo QR temporário no
+  // celular) avisa que o cliente pediu a conta. Não fecha a mesa nem lança
+  // pagamento: só dispara um aviso para quem estiver no painel de Mesas
+  // (balcão/notebook) confirmar e imprimir a comanda.
+  router.post('/:id/solicitar-conta', async (req: Request, res) => {
+    try {
+      const mesa = await q1('SELECT id, numero, status FROM mesas WHERE id=? AND tenant_id=?', [req.params.id, req.tenantId]);
+      if (!mesa) return res.status(404).json({ success:false, message:'Mesa não encontrada' });
+      if (mesa.status !== 'aberta') {
+        return res.status(400).json({ success:false, message:'Mesa não está aberta' });
+      }
+
+      const solicitadoPor = (req as any).isGarcomTemp
+        ? String((req as any).garcomNome || 'Garçom')
+        : (String(req.body?.solicitadoPor || '').trim().slice(0, 60) || 'Cliente');
+
+      const mapa = getSolicitacoesContaDoTenant(req.tenantId as number);
+      mapa.set(mesa.id, {
+        mesaId: mesa.id,
+        mesaNumero: mesa.numero,
+        solicitadoPor,
+        solicitadoEm: Date.now(),
+      });
+
+      notifyTenantOrderStreams(Number(req.tenantId), 'conta_solicitada', {
+        mesaId: mesa.id,
+        mesaNumero: mesa.numero,
+        solicitadoPor,
+      });
+
+      if ((req as any).isGarcomTemp) {
+        void logGarcomAction(req.tenantId as number, (req as any).garcomNome, 'PEDIU_CONTA', `Mesa ${mesa.numero}`);
+      }
+
+      res.json({ success:true });
+    } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
+  });
+
+  // GET /api/mesas/solicitacoes-conta — painel de Mesas (balcão/notebook)
+  // consulta periodicamente para saber se alguma mesa pediu a conta.
+  router.get('/solicitacoes-conta', async (req: Request, res) => {
+    try {
+      res.json(listarSolicitacoesContaAtivas(req.tenantId as number));
+    } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
+  });
+
+  // POST /api/mesas/:id/solicitar-conta/confirmar — quem está no balcão
+  // confirmou o aviso (normalmente depois de imprimir a comanda). Remove o
+  // aviso da lista de pendentes.
+  router.post('/:id/solicitar-conta/confirmar', async (req: Request, res) => {
+    try {
+      const mapa = getSolicitacoesContaDoTenant(req.tenantId as number);
+      mapa.delete(Number(req.params.id));
+      res.json({ success:true });
+    } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
+  });
+
+  // DELETE /api/mesas/:id/solicitar-conta — dispensa o aviso sem confirmar
+  // (ex.: pedido duplicado, mesa já foi atendida pessoalmente).
+  router.delete('/:id/solicitar-conta', async (req: Request, res) => {
+    try {
+      const mapa = getSolicitacoesContaDoTenant(req.tenantId as number);
+      mapa.delete(Number(req.params.id));
+      res.json({ success:true });
     } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
   });
 
@@ -506,7 +614,7 @@ export function createMesasRouter() {
       const { quantity } = req.body;
       const novaQtd = Number(quantity)||0;
       const itemAtual = await q1('SELECT * FROM itens_comanda WHERE id=? AND tenant_id=?', [req.params.itemId, req.tenantId]);
-      if (!itemAtual) return res.status(404).json({ success:false, message:'Item nÃ£o encontrado' });
+      if (!itemAtual) return res.status(404).json({ success:false, message:'Item não encontrado' });
       const qtdAnt = Number(itemAtual.quantity)||0;
       const diff = novaQtd-qtdAnt;
       const cmd = await q1('SELECT c.mesa_id FROM comandas c JOIN itens_comanda ic ON ic.comanda_id=c.id WHERE ic.id=? AND ic.tenant_id=?', [req.params.itemId, req.tenantId]);
@@ -557,8 +665,8 @@ export function createMesasRouter() {
   router.put('/:id/abrir', async (req: Request, res) => {
     try {
       const mesa = await q1('SELECT * FROM mesas WHERE id=? AND tenant_id=?', [req.params.id, req.tenantId]);
-      if (!mesa) return res.status(404).json({ success:false, message:'Mesa nÃ£o encontrada' });
-      if (mesa.status==='aberta') return res.json({ success:true, message:'Mesa jÃ¡ estava aberta' });
+      if (!mesa) return res.status(404).json({ success:false, message:'Mesa não encontrada' });
+      if (mesa.status==='aberta') return res.json({ success:true, message:'Mesa já estava aberta' });
       await withTx(async (client) => {
         await txRun(client, "UPDATE mesas SET status='aberta', opened_at=NOW() WHERE id=? AND tenant_id=?", [req.params.id, req.tenantId]);
         await txRun(client, "INSERT INTO comandas (mesa_id,tenant_id,status) VALUES (?,?,'aberta')", [req.params.id, req.tenantId]);
@@ -576,6 +684,7 @@ export function createMesasRouter() {
         await txRun(client, "UPDATE comandas SET status='fechada', closed_at=NOW() WHERE mesa_id=? AND status='aberta' AND tenant_id=?", [req.params.id, req.tenantId]);
         await txRun(client, "UPDATE mesas SET status='fechada', opened_at=NULL WHERE id=? AND tenant_id=?", [req.params.id, req.tenantId]);
       });
+      getSolicitacoesContaDoTenant(req.tenantId as number).delete(Number(req.params.id));
       res.json({ success:true });
     } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
   });
@@ -586,7 +695,7 @@ export function createMesasRouter() {
       if (!comanda) return res.json({ comanda:null, itens:[] });
       const itens = await qAll('SELECT ic.* FROM itens_comanda ic WHERE ic.comanda_id=? AND ic.tenant_id=? ORDER BY ic.created_at ASC', [comanda.id, req.tenantId]);
       
-      // CORREÃ‡ÃƒO: Converte quantidades e preÃ§os de cada item para Number
+      // CORREÇÃO: Converte quantidades e preços de cada item para Number
       const payload = buildMesaComandaPayloadShared(comanda, itens);
 
       res.json({
@@ -1054,6 +1163,9 @@ export function createMesasRouter() {
         };
       });
 
+      if (result.status === 200) {
+        getSolicitacoesContaDoTenant(req.tenantId as number).delete(Number(req.params.id));
+      }
       if (result.status === 200 && 'kdsSseOrderId' in result && result.kdsSseOrderId) {
         notifyTenantOrderStreams(Number(req.tenantId), 'status', { orderId: result.kdsSseOrderId });
       }
