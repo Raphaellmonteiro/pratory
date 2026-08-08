@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Monitor, Lock, Menu,
+  Monitor, Lock, Menu, Bell, Printer, X as XIcon, Loader2,
 } from 'lucide-react';
 
 import type { Product, CaixaStatusApi, Order } from './types';
@@ -214,6 +214,14 @@ export default function App() {
   const shouldRepeatOperationalSoundRef = React.useRef(false);
 
   const [openMesasCount, setOpenMesasCount] = useState(0);
+
+  // ── Avisos globais de "pedir a conta" (garçom via QR ou cliente) ─────────
+  // Fica de olho em qualquer aba (não só em Mesas) pra quem estiver no
+  // balcão/notebook não perder o aviso se estiver em Operação ou outra tela.
+  type SolicitacaoConta = { mesaId: number; mesaNumero: number; solicitadoPor: string; solicitadoEm: number };
+  const [contaRequests, setContaRequests] = useState<SolicitacaoConta[]>([]);
+  const [contaRequestBusyId, setContaRequestBusyId] = useState<number | null>(null);
+  const knownContaRequestIdsRef = React.useRef<Set<number>>(new Set());
 
   const userAllows = (tab: string): boolean => {
     if (userCargo === 'dono') return true;
@@ -497,6 +505,103 @@ React.useEffect(() => {
       if (intervalId) window.clearInterval(intervalId);
     };
   }, [token, isAdmin, isAtendimentoMobile, isOperationTab, operationalSoundEnabled, segCfg.statusConcluido]);
+
+  // ── Popup global: mesa pediu a conta ──────────────────────────────────────
+  // Roda em qualquer aba (Operação, Cardápio, etc.) — não só quando a pessoa
+  // está na tela de Mesas — pra ninguém perder o aviso do garçom/cliente.
+  const playContaAlertBeep = useCallback(() => {
+    try {
+      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.5);
+    } catch {
+      // Ambiente sem suporte a Web Audio — o popup visual já é suficiente.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!token || isAdmin || isAtendimentoMobile || isGarcomMobile) return;
+    if (!permiteMesas || !canAccess('mesas')) return;
+
+    const fetchContaRequests = async () => {
+      try {
+        const res = await fetch('/api/mesas/solicitacoes-conta', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const list: SolicitacaoConta[] = Array.isArray(data) ? data : [];
+        const hasNew = list.some((item) => !knownContaRequestIdsRef.current.has(item.mesaId));
+        knownContaRequestIdsRef.current = new Set(list.map((item) => item.mesaId));
+        if (hasNew) playContaAlertBeep();
+        setContaRequests(list);
+      } catch {
+        // Silencioso: a próxima checagem tenta de novo.
+      }
+    };
+
+    fetchContaRequests();
+    const intervalId = window.setInterval(fetchContaRequests, 6000);
+    return () => window.clearInterval(intervalId);
+  }, [token, isAdmin, isAtendimentoMobile, isGarcomMobile, permiteMesas, playContaAlertBeep]);
+
+  const handleImprimirComandaMesa = useCallback(async (mesaId: number) => {
+    try {
+      const res = await fetch(`/api/mesas/${mesaId}/comanda-html`, { headers: { Authorization: `Bearer ${token}` } });
+      const html = await res.text();
+      const janela = window.open('', '_blank', 'width=420,height=640');
+      if (!janela) {
+        alert('Não foi possível abrir a janela de impressão. Verifique o bloqueador de pop-ups.');
+        return;
+      }
+      janela.document.open();
+      janela.document.write(html);
+      janela.document.close();
+      const imprimir = () => { try { janela.focus(); janela.print(); } catch {} };
+      janela.onload = imprimir;
+      setTimeout(imprimir, 400);
+    } catch {
+      alert('Não foi possível abrir a comanda para impressão.');
+    }
+  }, [token]);
+
+  const handleConfirmarContaSolicitada = useCallback(async (mesaId: number) => {
+    setContaRequestBusyId(mesaId);
+    try {
+      await fetch(`/api/mesas/${mesaId}/solicitar-conta/confirmar`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setContaRequests((prev) => prev.filter((r) => r.mesaId !== mesaId));
+      await handleImprimirComandaMesa(mesaId);
+    } finally {
+      setContaRequestBusyId(null);
+    }
+  }, [token, handleImprimirComandaMesa]);
+
+  const handleDispensarContaSolicitada = useCallback(async (mesaId: number) => {
+    setContaRequestBusyId(mesaId);
+    try {
+      await fetch(`/api/mesas/${mesaId}/solicitar-conta`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setContaRequests((prev) => prev.filter((r) => r.mesaId !== mesaId));
+    } finally {
+      setContaRequestBusyId(null);
+    }
+  }, [token]);
 
   useEffect(() => {
     if (!shouldRepeatOperationalSound) {
@@ -1400,6 +1505,61 @@ const handleAuth = async (e: React.FormEvent) => {
       <AnimatePresence>
         {showQRModal && (
           <QRMesasModal slug={slugAtual} token={token} onClose={() => setShowQRModal(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* ── Popup global: mesa pediu a conta (aparece em qualquer aba) ─────── */}
+      <AnimatePresence>
+        {contaRequests.length > 0 && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[400] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-8 flex flex-col items-center text-center"
+            >
+              <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mb-4 animate-pulse">
+                <Bell size={26} className="text-amber-600" />
+              </div>
+              <h3 className="text-xl font-black text-zinc-900 mb-1">
+                Mesa {contaRequests[0].mesaNumero} pediu a conta
+              </h3>
+              <p className="text-sm text-zinc-500 mb-1">
+                Solicitado por {contaRequests[0].solicitadoPor} às{' '}
+                {new Date(contaRequests[0].solicitadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+              </p>
+              {contaRequests.length > 1 && (
+                <p className="text-xs font-semibold text-amber-600 mb-4">
+                  + {contaRequests.length - 1} outra{contaRequests.length - 1 > 1 ? 's' : ''} mesa{contaRequests.length - 1 > 1 ? 's' : ''} aguardando
+                </p>
+              )}
+
+              <div className="flex flex-col gap-2 w-full mt-4">
+                <button
+                  type="button"
+                  onClick={() => handleConfirmarContaSolicitada(contaRequests[0].mesaId)}
+                  disabled={contaRequestBusyId === contaRequests[0].mesaId}
+                  className="w-full px-4 py-3 bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl font-bold text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {contaRequestBusyId === contaRequests[0].mesaId ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Printer size={16} />
+                  )}
+                  Confirmar e imprimir comanda
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDispensarContaSolicitada(contaRequests[0].mesaId)}
+                  disabled={contaRequestBusyId === contaRequests[0].mesaId}
+                  className="w-full px-4 py-3 bg-zinc-100 hover:bg-zinc-200 rounded-xl font-semibold text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <XIcon size={16} />
+                  Dispensar
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
