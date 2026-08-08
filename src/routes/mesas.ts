@@ -1039,24 +1039,32 @@ export function createMesasRouter() {
           [req.tenantId, `Mesa ${mesa.numero}`]
         );
 
-        if ((req as any).isGarcomTemp) {
-          void logGarcomAction(
-            req.tenantId as number,
-            (req as any).garcomNome,
-            'FECHOU_MESA',
-            `Mesa ${mesa.numero} — ${orderNumber} — R$ ${snapshot.total.toFixed(2)} via ${paymentMethod}`
-          );
-        }
-
         return {
           status: 200,
           body: { success:true, orderNumber, change:troco, receipt:receiptHtml },
           kdsSseOrderId: kdsOpen ? Number(kdsOpen.id) : undefined,
+          garcomLog: (req as any).isGarcomTemp
+            ? {
+                mesaNumero: mesa.numero,
+                orderNumber,
+                total: snapshot.total,
+                paymentMethod,
+              }
+            : undefined,
         };
       });
 
       if (result.status === 200 && 'kdsSseOrderId' in result && result.kdsSseOrderId) {
         notifyTenantOrderStreams(Number(req.tenantId), 'status', { orderId: result.kdsSseOrderId });
+      }
+      if (result.status === 200 && 'garcomLog' in result && result.garcomLog) {
+        const { mesaNumero, orderNumber: logOrderNumber, total, paymentMethod: logPaymentMethod } = result.garcomLog;
+        void logGarcomAction(
+          req.tenantId as number,
+          (req as any).garcomNome,
+          'FECHOU_MESA',
+          `Mesa ${mesaNumero} — ${logOrderNumber} — R$ ${total.toFixed(2)} via ${logPaymentMethod}`
+        );
       }
       return res.status(result.status).json(result.body);
     } catch (e: any) {
