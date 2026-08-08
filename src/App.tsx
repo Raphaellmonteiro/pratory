@@ -863,7 +863,7 @@ const handleAuth = async (e: React.FormEvent) => {
   }
 
   // QR temporário do garçom: acesso público, sem login pessoal — a validade
-  // do token (3h) é conferida pelo próprio back-end a cada chamada.
+  // do token (6h) é conferida pelo próprio back-end a cada chamada.
   if (isGarcomMobile && garcomQrToken) {
     return (
       <Suspense fallback={<PublicRouteFallback />}>

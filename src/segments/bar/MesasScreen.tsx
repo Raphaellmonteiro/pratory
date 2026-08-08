@@ -80,7 +80,7 @@ export default function MesasScreen({ token, taxasPagamento }: { token: string; 
       const data = await res.json();
       if (data?.success) {
         setQrGarcomUrl(data.url);
-        setQrGarcomExpiresAt(Date.now() + (data.expires_in_minutes || 180) * 60 * 1000);
+        setQrGarcomExpiresAt(Date.now() + (data.expires_in_minutes || 360) * 60 * 1000);
       }
     } catch {
       setQrGarcomUrl(null);
@@ -247,7 +247,7 @@ export default function MesasScreen({ token, taxasPagamento }: { token: string; 
               <h3 className="text-xl font-black text-zinc-900 mb-1">QR do Garçom</h3>
               <p className="text-sm text-zinc-500 mb-5">
                 Peça para o garçom escanear com o celular. Ele poderá abrir mesas e lançar
-                pedidos direto, sem precisar de login. Válido por 3 horas.
+                pedidos direto, sem precisar de login. Válido por 6 horas.
               </p>
 
               {qrGarcomLoading ? (

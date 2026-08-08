@@ -634,17 +634,38 @@ export const authDeliveryCliente = (req: any, res: any, next: any) => {
 // ── QR temporário do garçom (abrir mesa + lançar pedidos, sem login pessoal) ──
 // Gerado sob demanda em Mesas → "Gerar QR Garçom" por quem já está autenticado
 // normalmente (dono/gerente). Token stateless, expira sozinho — nada gravado no banco.
-const GARCOM_TEMP_TOKEN_TTL = '3h';
+const GARCOM_TEMP_TOKEN_TTL = '6h';
+
+// Tamanho máximo aceito pro nome autodeclarado do garçom (enviado no header
+// abaixo). Não é autenticação — é somente rastreabilidade operacional em
+// system_logs (quem abriu/fechou qual mesa).
+const GARCOM_NOME_MAX_LEN = 60;
+const GARCOM_NOME_HEADER = 'x-garcom-nome';
 
 export function signGarcomTempToken(tenantId: number | string) {
   return jwt.sign({ tipo: 'garcom_temp', tenantId }, JWT_SECRET, { expiresIn: GARCOM_TEMP_TOKEN_TTL });
 }
 
 /**
+ * Extrai o nome autodeclarado do garçom enviado no header `x-garcom-nome`
+ * (guardado no navegador do aparelho após a telinha "Qual seu nome?").
+ * Isso NÃO é autenticação: é texto livre, usado só pra carimbar as ações
+ * em system_logs. Sem header, cai no fallback genérico.
+ */
+function extractGarcomNome(req: Request): string {
+  const raw = req.headers[GARCOM_NOME_HEADER];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const trimmed = String(value || '').trim().slice(0, GARCOM_NOME_MAX_LEN);
+  return trimmed || 'Garçom (sem nome)';
+}
+
+/**
  * Aceita tanto o JWT normal de sessão quanto o QR temporário do garçom.
  * Quando é QR temporário, monta uma sessão sintética com escopo mínimo
  * (apenas o módulo "mesas") — a restrição fina de rota fica a cargo de
- * `restrictGarcomTempScope`, aplicado só no router de mesas.
+ * `restrictGarcomTempScope`, aplicado só no router de mesas. Também anexa
+ * `req.garcomNome` (autodeclarado, ver `extractGarcomNome`) pra quem for
+ * gravar log de ação (abrir/fechar mesa).
  */
 export const authenticateTokenOrGarcomTemp = async (req: Request, res: Response, next: NextFunction) => {
   const token = extractBearerToken(req);
@@ -657,6 +678,7 @@ export const authenticateTokenOrGarcomTemp = async (req: Request, res: Response,
         req.userCargo = 'garcom_temp';
         req.userPermissoes = ['mesas'];
         (req as any).isGarcomTemp = true;
+        (req as any).garcomNome = extractGarcomNome(req);
         return next();
       }
     } catch {
@@ -668,8 +690,9 @@ export const authenticateTokenOrGarcomTemp = async (req: Request, res: Response,
 
 /**
  * Aplicado só nas rotas de /mesas: quando a sessão veio do QR temporário do
- * garçom, permite apenas listar mesas, ver comanda, abrir mesa e lançar
- * itens — nunca fechar mesa, finalizar pagamento ou reconfigurar mesas.
+ * garçom, permite listar mesas, ver comanda, abrir mesa, lançar/editar/remover
+ * itens e fechar mesa (finalizar pagamento) — nunca reconfigurar mesas nem
+ * gerar novo QR.
  */
 export function restrictGarcomTempScope(req: Request, res: Response, next: NextFunction) {
   if (!(req as any).isGarcomTemp) return next();
@@ -678,7 +701,7 @@ export function restrictGarcomTempScope(req: Request, res: Response, next: NextF
     (req.method === 'GET' && (req.path === '/' || req.path === '/produtos-garcom' || /^\/[^/]+\/comanda$/.test(req.path))) ||
     (req.method === 'PUT' && (/^\/[^/]+\/abrir$/.test(req.path) || /^\/comanda\/item\/[^/]+$/.test(req.path))) ||
     (req.method === 'DELETE' && /^\/comanda\/item\/[^/]+$/.test(req.path)) ||
-    (req.method === 'POST' && /^\/[^/]+\/comanda\/adicionar$/.test(req.path));
+    (req.method === 'POST' && (/^\/[^/]+\/comanda\/adicionar$/.test(req.path) || /^\/[^/]+\/comanda\/finalizar$/.test(req.path)));
 
   if (!allowed) {
     return res.status(403).json({ error: 'QR temporário do garçom não permite esta ação.' });

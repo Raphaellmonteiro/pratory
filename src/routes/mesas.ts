@@ -269,6 +269,23 @@ async function persistKdsSyncFailureAudit(params: {
   }
 }
 
+/**
+ * Log operacional de ação do garçom (QR temporário) em `system_logs` —
+ * mesma tabela já lida pela tela de logs no admin. O nome é autodeclarado
+ * (ver `req.garcomNome` em middleware.ts), não é autenticação: serve pra
+ * responder "quem abriu/fechou essa mesa" no turno.
+ */
+async function logGarcomAction(tenantId: number | string, garcomNome: string, acao: string, detalhes: string) {
+  try {
+    await qRun(
+      'INSERT INTO system_logs (tenant_id,usuario_nome,cargo,acao,detalhes) VALUES (?,?,?,?,?)',
+      [tenantId, garcomNome, 'garcom', acao, detalhes]
+    );
+  } catch (logErr) {
+    logError('mesas.logGarcomAction', logErr, { tenantId, acao });
+  }
+}
+
 async function syncKdsItem(
   tenantId: number,
   mesaId: string | number,
@@ -388,10 +405,11 @@ export function createMesasRouter() {
     } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
   });
 
-  // POST /api/mesas/gerar-qr-garcom — gera um QR temporário (3h) para o garçom
-  // abrir mesas e lançar pedidos pelo celular, sem precisar de login pessoal.
-  // Só quem já está autenticado normalmente (dono/gerente com acesso a "mesas")
-  // pode gerar; o token resultante tem escopo restrito (ver restrictGarcomTempScope).
+  // POST /api/mesas/gerar-qr-garcom — gera um QR temporário (6h) para o garçom
+  // abrir mesas, lançar pedidos e fechar mesa pelo celular, sem precisar de
+  // login pessoal. Só quem já está autenticado normalmente (dono/gerente com
+  // acesso a "mesas") pode gerar; o token resultante tem escopo restrito
+  // (ver restrictGarcomTempScope).
   router.post('/gerar-qr-garcom', async (req: Request, res) => {
     try {
       if ((req as any).isGarcomTemp) {
@@ -403,7 +421,7 @@ export function createMesasRouter() {
         success: true,
         token,
         url: `${baseUrl}/m/garcom/${token}`,
-        expires_in_minutes: 180,
+        expires_in_minutes: 360,
       });
     } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
   });
@@ -545,6 +563,9 @@ export function createMesasRouter() {
         await txRun(client, "UPDATE mesas SET status='aberta', opened_at=NOW() WHERE id=? AND tenant_id=?", [req.params.id, req.tenantId]);
         await txRun(client, "INSERT INTO comandas (mesa_id,tenant_id,status) VALUES (?,?,'aberta')", [req.params.id, req.tenantId]);
       });
+      if ((req as any).isGarcomTemp) {
+        void logGarcomAction(req.tenantId as number, (req as any).garcomNome, 'ABRIU_MESA', `Mesa ${mesa.numero}`);
+      }
       res.json({ success:true });
     } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
   });
@@ -1017,6 +1038,15 @@ export function createMesasRouter() {
           `UPDATE pedidos SET status='Entregue' WHERE tenant_id=? AND observation=? AND ${buildOperationalKdsOrderClause()}`,
           [req.tenantId, `Mesa ${mesa.numero}`]
         );
+
+        if ((req as any).isGarcomTemp) {
+          void logGarcomAction(
+            req.tenantId as number,
+            (req as any).garcomNome,
+            'FECHOU_MESA',
+            `Mesa ${mesa.numero} — ${orderNumber} — R$ ${snapshot.total.toFixed(2)} via ${paymentMethod}`
+          );
+        }
 
         return {
           status: 200,
