@@ -647,6 +647,22 @@ export function signGarcomTempToken(tenantId: number | string) {
 }
 
 /**
+ * Token de garçom já identificado: emitido só depois que ele escolheu seu
+ * nome na lista de garçons cadastrados e acertou o PIN (ver `POST
+ * /api/mesas/garcom-login`). Carrega `garcomId`/`garcomNome` no próprio JWT
+ * (stateless, igual ao QR temporário) — dessa forma toda ação feita com esse
+ * token já sai carimbada com o garçom certo, sem depender de header de texto
+ * livre digitado pelo cliente.
+ */
+export function signGarcomIdentifiedToken(tenantId: number | string, garcomId: number, garcomNome: string) {
+  return jwt.sign(
+    { tipo: 'garcom_temp', tenantId, garcomId, garcomNome: String(garcomNome || '').slice(0, GARCOM_NOME_MAX_LEN) },
+    JWT_SECRET,
+    { expiresIn: GARCOM_TEMP_TOKEN_TTL }
+  );
+}
+
+/**
  * Extrai o nome autodeclarado do garçom enviado no header `x-garcom-nome`
  * (guardado no navegador do aparelho após a telinha "Qual seu nome?").
  * Isso NÃO é autenticação: é texto livre, usado só pra carimbar as ações
@@ -678,7 +694,8 @@ export const authenticateTokenOrGarcomTemp = async (req: Request, res: Response,
         req.userCargo = 'garcom_temp';
         req.userPermissoes = ['mesas'];
         (req as any).isGarcomTemp = true;
-        (req as any).garcomNome = extractGarcomNome(req);
+        (req as any).garcomId = typeof dec.garcomId === 'number' ? dec.garcomId : null;
+        (req as any).garcomNome = dec.garcomNome ? String(dec.garcomNome).slice(0, GARCOM_NOME_MAX_LEN) : extractGarcomNome(req);
         return next();
       }
     } catch {
@@ -697,6 +714,17 @@ export const authenticateTokenOrGarcomTemp = async (req: Request, res: Response,
  */
 export function restrictGarcomTempScope(req: Request, res: Response, next: NextFunction) {
   if (!(req as any).isGarcomTemp) return next();
+
+  // Antes de se identificar (escolher o nome na lista de garçons cadastrados
+  // + digitar o PIN), o QR só pode listar os garçons e tentar o login.
+  const preLogin =
+    (req.method === 'GET' && req.path === '/garcons-publico') ||
+    (req.method === 'POST' && req.path === '/garcom-login');
+  if (preLogin) return next();
+
+  if (!(req as any).garcomId) {
+    return res.status(401).json({ error: 'Selecione seu nome e informe o PIN para continuar.' });
+  }
 
   const allowed =
     (req.method === 'GET' && (

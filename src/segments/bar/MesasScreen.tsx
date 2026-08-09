@@ -3,10 +3,12 @@ import {
   TableProperties,
   Settings,
   QrCode,
+  Users,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import MesaCard from './MesaCard';
 import ComandaMesaModal from './ComandaMesaModal';
+import GarcomCadastroModal from './GarcomCadastroModal';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Spinner } from '../../components/ui/Spinner';
 import type { Product, Category, OrderItem, OrderType, PaymentMethod, Order, DashboardStats, CashReport, Expense, Caixa, Ingrediente, MovimentacaoEstoque } from '../../types';
@@ -19,6 +21,7 @@ export default function MesasScreen({ token, taxasPagamento }: { token: string; 
   const [qtdInput, setQtdInput] = useState('');
   const [configLoading, setConfigLoading] = useState(false);
   const [showQrGarcom, setShowQrGarcom] = useState(false);
+  const [showGarcons, setShowGarcons] = useState(false);
   const [qrGarcomUrl, setQrGarcomUrl] = useState<string | null>(null);
   const [qrGarcomExpiresAt, setQrGarcomExpiresAt] = useState<number | null>(null);
   const [qrGarcomLoading, setQrGarcomLoading] = useState(false);
@@ -109,6 +112,13 @@ export default function MesasScreen({ token, taxasPagamento }: { token: string; 
         <div className="flex flex-wrap items-center justify-between gap-4">
           <h1 className="text-xl font-black text-zinc-900">Mesas</h1>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowGarcons(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg font-semibold text-sm transition-all active:scale-95"
+            >
+              <Users size={14} />
+              Cadastrar Garçom
+            </button>
             <button
               onClick={handleGerarQrGarcom}
               className="flex items-center gap-2 px-3 py-2 bg-[#EA1D2C] hover:bg-[#C9101E] text-white rounded-lg font-semibold text-sm transition-all active:scale-95"
@@ -289,6 +299,11 @@ export default function MesasScreen({ token, taxasPagamento }: { token: string; 
           </div>
         )}
       </AnimatePresence>
+
+      {/* Modal de Cadastro de Garçons */}
+      {showGarcons && (
+        <GarcomCadastroModal token={token} onClose={() => setShowGarcons(false)} />
+      )}
 
       {/* Modal de Comanda da Mesa */}
       <AnimatePresence>

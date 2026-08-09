@@ -92,6 +92,13 @@ function MesaCard({
         <span className="text-3xl font-black text-zinc-100 leading-none drop-shadow-[0_1px_0_rgba(255,255,255,0.08)]">{mesa.numero}</span>
         <span className="text-[11px] font-extrabold text-zinc-200/80 mt-1 uppercase tracking-[0.22em]">Mesa</span>
 
+        {isOpen && mesa.garcom_nome && (
+          <div className="mt-1.5 w-full flex items-center justify-center gap-1 text-[9px] font-bold text-zinc-200/70 uppercase tracking-wide truncate">
+            <span className="w-1 h-1 rounded-full bg-[#EA1D2C]/70 shrink-0" />
+            <span className="truncate">Garçom: {mesa.garcom_nome}</span>
+          </div>
+        )}
+
         {isOpen && (
           <div className="mt-2 w-full space-y-0.5">
             {mesa.total_itens > 0 ? (

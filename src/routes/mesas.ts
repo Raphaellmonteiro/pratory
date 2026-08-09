@@ -22,7 +22,8 @@ import { runAutomatedKitchenPrintForMesa } from '../services/operationalAutomati
 import { tenantHasInventoryFeature } from '../services/tenantPlan';
 import { notifyTenantOrderStreams } from '../sse';
 import { coerceDeliveryConfigRow } from '../utils/deliveryConfigPersist';
-import { signGarcomTempToken } from '../middleware';
+import { signGarcomTempToken, signGarcomIdentifiedToken } from '../middleware';
+import { hashPlainSecurityPassword, verifyStoredSecurityPassword } from '../utils/securityPasswordStorage';
 import { loadProdutoGruposOpcao, mapComboGruposPublic } from './products';
 import { loadComboGruposForProduto } from '../services/productComboValidation';
 
@@ -505,6 +506,211 @@ export function createMesasRouter() {
     } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
   });
 
+  // ── Garçons cadastrados (login por PIN no QR + divisão da taxa de serviço) ──
+  // Cadastro simples de "garçom de salão", separado de `funcionarios`
+  // (RH/folha de pagamento) de propósito: o dono pode querer usar isso sem
+  // colocar a pessoa na folha. Só quem está autenticado normalmente (dono/
+  // gerente) mexe nesse cadastro; o garçom no celular só lista nomes e loga
+  // com PIN (ver /garcons-publico e /garcom-login mais abaixo).
+  function sanitizeGarcomRow(row: any) {
+    if (!row) return row;
+    const { pin, ...rest } = row;
+    return {
+      ...rest,
+      taxa_percentual_override: row.taxa_percentual_override != null ? Number(row.taxa_percentual_override) : null,
+      pin_configurado: !!String(pin || '').trim(),
+    };
+  }
+
+  router.get('/garcons', async (req: Request, res) => {
+    try {
+      if ((req as any).isGarcomTemp) return res.status(403).json({ error: 'Acesso não permitido.' });
+      const rows = await qAll('SELECT * FROM garcons WHERE tenant_id=? ORDER BY ativo DESC, nome ASC', [req.tenantId]);
+      res.json({ success: true, garcons: rows.map(sanitizeGarcomRow) });
+    } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
+  });
+
+  router.post('/garcons', async (req: Request, res) => {
+    try {
+      if ((req as any).isGarcomTemp) return res.status(403).json({ error: 'Acesso não permitido.' });
+      const nome = String(req.body?.nome || '').trim();
+      const pin = String(req.body?.pin || '').trim();
+      const taxaRaw = req.body?.taxa_percentual_override;
+      const taxa = taxaRaw === undefined || taxaRaw === null || taxaRaw === ''
+        ? null
+        : Math.max(0, Math.min(100, toNumber(taxaRaw, 0)));
+
+      if (!nome) return res.status(400).json({ success: false, message: 'Informe o nome do garçom.' });
+      if (!/^\d{4,6}$/.test(pin)) {
+        return res.status(400).json({ success: false, message: 'O PIN deve ter de 4 a 6 números.' });
+      }
+      const dupe = await q1(
+        'SELECT id FROM garcons WHERE tenant_id=? AND ativo=1 AND LOWER(nome)=LOWER(?)',
+        [req.tenantId, nome]
+      );
+      if (dupe) return res.status(409).json({ success: false, message: 'Já existe um garçom ativo com esse nome.' });
+
+      const id = await qInsert(
+        'INSERT INTO garcons (tenant_id, nome, pin, taxa_percentual_override, ativo) VALUES (?,?,?,?,1)',
+        [req.tenantId, nome, hashPlainSecurityPassword(pin), taxa]
+      );
+      const row = await q1('SELECT * FROM garcons WHERE id=? AND tenant_id=?', [id, req.tenantId]);
+      res.json({ success: true, garcom: sanitizeGarcomRow(row) });
+    } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
+  });
+
+  // GET /api/mesas/garcons-publico — nomes dos garçons ativos, pra tela de
+  // seleção no celular (QR temporário, antes de ele se identificar).
+  router.get('/garcons-publico', async (req: Request, res) => {
+    try {
+      const rows = await qAll(
+        'SELECT id, nome FROM garcons WHERE tenant_id=? AND ativo=1 ORDER BY nome ASC',
+        [req.tenantId]
+      );
+      res.json({ success: true, garcons: rows });
+    } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
+  });
+
+  // POST /api/mesas/garcom-login — o garçom escolheu o nome dele na lista e
+  // digitou o PIN. Confere e devolve um token "identificado" (mesmo QR
+  // temporário, agora carimbado com garcomId/garcomNome) — é esse token que
+  // o celular passa a usar pra abrir mesas, lançar pedidos e fechar a conta.
+  router.post('/garcom-login', async (req: Request, res) => {
+    try {
+      const garcomId = Number(req.body?.garcom_id);
+      const pin = String(req.body?.pin || '').trim();
+      if (!garcomId || !pin) {
+        return res.status(400).json({ success: false, message: 'Selecione seu nome e informe o PIN.' });
+      }
+      const garcom = await q1('SELECT * FROM garcons WHERE id=? AND tenant_id=? AND ativo=1', [garcomId, req.tenantId]);
+      if (!garcom) return res.status(404).json({ success: false, message: 'Garçom não encontrado.' });
+
+      const result = verifyStoredSecurityPassword(garcom.pin, pin);
+      if (!result.ok) return res.status(401).json({ success: false, message: 'PIN incorreto.' });
+      if (result.rehashToBcrypt) {
+        await qRun('UPDATE garcons SET pin=? WHERE id=? AND tenant_id=?', [hashPlainSecurityPassword(pin), garcomId, req.tenantId]);
+      }
+
+      const token = signGarcomIdentifiedToken(req.tenantId as number, garcom.id, garcom.nome);
+      res.json({ success: true, token, garcom: { id: garcom.id, nome: garcom.nome } });
+    } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
+  });
+
+  // GET /api/mesas/garcons/relatorio-taxas — quanto foi arrecadado de taxa de
+  // serviço num período e quanto cabe a cada garçom: soma por quem abriu/
+  // fechou a mesa (modo "individual") e também a divisão igual entre todos os
+  // garçons ativos (modo "geral"), pro dono escolher como paga.
+  router.get('/garcons/relatorio-taxas', async (req: Request, res) => {
+    try {
+      if ((req as any).isGarcomTemp) return res.status(403).json({ error: 'Acesso não permitido.' });
+      const inicio = String(req.query.inicio || '').trim();
+      const fim = String(req.query.fim || '').trim();
+      const params: any[] = [req.tenantId];
+      let whereData = '';
+      if (inicio) { whereData += ' AND p.created_at >= ?'; params.push(`${inicio} 00:00:00`); }
+      if (fim) { whereData += ' AND p.created_at <= ?'; params.push(`${fim} 23:59:59`); }
+
+      const totalRow = await q1(
+        `SELECT COALESCE(SUM(p.valor_taxa_servico),0) as total_taxa, COUNT(*) as qtd_comandas
+         FROM pedidos p WHERE p.tenant_id=? AND p.canal='mesa' AND p.status<>'cancelado' ${whereData}`,
+        params
+      );
+      const porGarcom = await qAll(
+        `SELECT COALESCE(p.garcom_id,0) as garcom_id, COALESCE(NULLIF(p.garcom_nome,''),'Sem garçom identificado') as garcom_nome,
+                COALESCE(SUM(p.valor_taxa_servico),0) as total_taxa, COUNT(*) as qtd_comandas
+         FROM pedidos p WHERE p.tenant_id=? AND p.canal='mesa' AND p.status<>'cancelado' ${whereData}
+         GROUP BY COALESCE(p.garcom_id,0), COALESCE(NULLIF(p.garcom_nome,''),'Sem garçom identificado')
+         ORDER BY total_taxa DESC`,
+        params
+      );
+      const garconsAtivos = await qAll(
+        'SELECT id, nome, taxa_percentual_override FROM garcons WHERE tenant_id=? AND ativo=1 ORDER BY nome ASC',
+        [req.tenantId]
+      );
+      const clienteRow = await q1('SELECT taxa_servico_modo_divisao FROM clientes WHERE id=?', [req.tenantId]);
+      const totalTaxa = toNumber(totalRow?.total_taxa, 0);
+      const qtdAtivos = garconsAtivos.length;
+      const divisaoGeralPorGarcom = qtdAtivos > 0 ? totalTaxa / qtdAtivos : 0;
+
+      res.json({
+        success: true,
+        modo_divisao: clienteRow?.taxa_servico_modo_divisao || 'individual',
+        total_taxa_servico: totalTaxa,
+        total_comandas: toNumber(totalRow?.qtd_comandas, 0),
+        divisao_geral_por_garcom: divisaoGeralPorGarcom,
+        por_garcom: porGarcom.map((r: any) => ({
+          garcom_id: toNumber(r.garcom_id, 0) || null,
+          garcom_nome: r.garcom_nome,
+          total_taxa: toNumber(r.total_taxa, 0),
+          qtd_comandas: toNumber(r.qtd_comandas, 0),
+        })),
+        garcons_ativos: garconsAtivos.map((g: any) => ({
+          id: g.id,
+          nome: g.nome,
+          taxa_percentual_override: g.taxa_percentual_override != null ? Number(g.taxa_percentual_override) : null,
+        })),
+      });
+    } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
+  });
+
+  // PUT /api/mesas/garcons/config-divisao — escolhe como a taxa de serviço é
+  // repartida entre os garçons: 'individual' (cada um fica com a taxa das
+  // mesas que fechou) ou 'geral' (soma tudo e divide igual entre os ativos).
+  router.put('/garcons/config-divisao', async (req: Request, res) => {
+    try {
+      if ((req as any).isGarcomTemp) return res.status(403).json({ error: 'Acesso não permitido.' });
+      const modo = String(req.body?.modo || '').trim();
+      if (!['individual', 'geral'].includes(modo)) {
+        return res.status(400).json({ success: false, message: 'Modo inválido.' });
+      }
+      await qRun('UPDATE clientes SET taxa_servico_modo_divisao=? WHERE id=?', [modo, req.tenantId]);
+      res.json({ success: true });
+    } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
+  });
+
+  router.put('/garcons/:id', async (req: Request, res) => {
+    try {
+      if ((req as any).isGarcomTemp) return res.status(403).json({ error: 'Acesso não permitido.' });
+      const existing = await q1('SELECT * FROM garcons WHERE id=? AND tenant_id=?', [req.params.id, req.tenantId]);
+      if (!existing) return res.status(404).json({ success: false, message: 'Garçom não encontrado.' });
+
+      const nome = req.body?.nome !== undefined ? String(req.body.nome).trim() : existing.nome;
+      if (!nome) return res.status(400).json({ success: false, message: 'Informe o nome do garçom.' });
+
+      let pinHash = existing.pin;
+      if (req.body?.pin !== undefined && String(req.body.pin).trim() !== '') {
+        const pin = String(req.body.pin).trim();
+        if (!/^\d{4,6}$/.test(pin)) {
+          return res.status(400).json({ success: false, message: 'O PIN deve ter de 4 a 6 números.' });
+        }
+        pinHash = hashPlainSecurityPassword(pin);
+      }
+
+      const ativo = req.body?.ativo !== undefined ? (toFlag(req.body.ativo, true) ? 1 : 0) : existing.ativo;
+      const taxaRaw = req.body?.taxa_percentual_override;
+      const taxa =
+        taxaRaw === undefined
+          ? existing.taxa_percentual_override
+          : (taxaRaw === null || taxaRaw === '' ? null : Math.max(0, Math.min(100, toNumber(taxaRaw, 0))));
+
+      await qRun(
+        'UPDATE garcons SET nome=?, pin=?, ativo=?, taxa_percentual_override=? WHERE id=? AND tenant_id=?',
+        [nome, pinHash, ativo, taxa, req.params.id, req.tenantId]
+      );
+      const row = await q1('SELECT * FROM garcons WHERE id=? AND tenant_id=?', [req.params.id, req.tenantId]);
+      res.json({ success: true, garcom: sanitizeGarcomRow(row) });
+    } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
+  });
+
+  // Desativa (não apaga de verdade — preserva o histórico de taxa no relatório).
+  router.delete('/garcons/:id', async (req: Request, res) => {
+    try {
+      if ((req as any).isGarcomTemp) return res.status(403).json({ error: 'Acesso não permitido.' });
+      await qRun('UPDATE garcons SET ativo=0 WHERE id=? AND tenant_id=?', [req.params.id, req.tenantId]);
+      res.json({ success: true });
+    } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
+  });
+
   // POST /api/mesas/:id/solicitar-conta — o garçom (pelo QR temporário no
   // celular) avisa que o cliente pediu a conta. Não fecha a mesa nem lança
   // pagamento: só dispara um aviso para quem estiver no painel de Mesas
@@ -756,9 +962,19 @@ export function createMesasRouter() {
       const mesa = await q1('SELECT * FROM mesas WHERE id=? AND tenant_id=?', [req.params.id, req.tenantId]);
       if (!mesa) return res.status(404).json({ success:false, message:'Mesa não encontrada' });
       if (mesa.status==='aberta') return res.json({ success:true, message:'Mesa já estava aberta' });
+      const garcomId = (req as any).isGarcomTemp ? ((req as any).garcomId ?? null) : null;
+      const garcomNome = (req as any).isGarcomTemp ? ((req as any).garcomNome || null) : null;
       await withTx(async (client) => {
-        await txRun(client, "UPDATE mesas SET status='aberta', opened_at=NOW() WHERE id=? AND tenant_id=?", [req.params.id, req.tenantId]);
-        await txRun(client, "INSERT INTO comandas (mesa_id,tenant_id,status) VALUES (?,?,'aberta')", [req.params.id, req.tenantId]);
+        await txRun(
+          client,
+          "UPDATE mesas SET status='aberta', opened_at=NOW(), garcom_id=?, garcom_nome=? WHERE id=? AND tenant_id=?",
+          [garcomId, garcomNome, req.params.id, req.tenantId]
+        );
+        await txRun(
+          client,
+          "INSERT INTO comandas (mesa_id,tenant_id,status,garcom_id,garcom_nome) VALUES (?,?,'aberta',?,?)",
+          [req.params.id, req.tenantId, garcomId, garcomNome]
+        );
       });
       if ((req as any).isGarcomTemp) {
         void logGarcomAction(req.tenantId as number, (req as any).garcomNome, 'ABRIU_MESA', `Mesa ${mesa.numero}`);
@@ -771,7 +987,7 @@ export function createMesasRouter() {
     try {
       await withTx(async (client) => {
         await txRun(client, "UPDATE comandas SET status='fechada', closed_at=NOW() WHERE mesa_id=? AND status='aberta' AND tenant_id=?", [req.params.id, req.tenantId]);
-        await txRun(client, "UPDATE mesas SET status='fechada', opened_at=NULL WHERE id=? AND tenant_id=?", [req.params.id, req.tenantId]);
+        await txRun(client, "UPDATE mesas SET status='fechada', opened_at=NULL, garcom_id=NULL, garcom_nome=NULL WHERE id=? AND tenant_id=?", [req.params.id, req.tenantId]);
       });
       getSolicitacoesContaDoTenant(req.tenantId as number).delete(Number(req.params.id));
       res.json({ success:true });
@@ -1052,7 +1268,7 @@ export function createMesasRouter() {
       const result = await withTx(async (client) => {
         const mesa = await txQ1(
           client,
-          'SELECT id, numero FROM mesas WHERE id=? AND tenant_id=? FOR UPDATE',
+          'SELECT id, numero, garcom_id, garcom_nome FROM mesas WHERE id=? AND tenant_id=? FOR UPDATE',
           [req.params.id, req.tenantId]
         );
         if (!mesa) return { status: 404, body: { success:false, message:'Mesa não encontrada' } };
@@ -1142,12 +1358,12 @@ export function createMesasRouter() {
            `INSERT INTO pedidos (
               order_number,status,total_amount,observation,receipt_text,tenant_id,canal,tipo_retirada,
               pagamento_tipo,pagamento_status,mesa_id,comanda_id,subtotal,taxa_servico_ativa,taxa_servico_percentual,valor_taxa_servico,
-              couvert_ativo,couvert_valor_unitario,couvert_quantidade_pessoas,valor_couvert,total_extras
+              couvert_ativo,couvert_valor_unitario,couvert_quantidade_pessoas,valor_couvert,total_extras,garcom_id,garcom_nome
             ) VALUES (
              ?,
              'Concluido',
              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-             ?, ?, ?, ?, ?, ?, ?, ?, ?
+             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             )`,
           [
             orderNumber,
@@ -1170,6 +1386,8 @@ export function createMesasRouter() {
             snapshot.couvertQuantidadePessoas,
             snapshot.valorCouvert,
             snapshot.totalExtras,
+            mesa.garcom_id ?? null,
+            mesa.garcom_nome ?? null,
           ]
         );
 
@@ -1225,7 +1443,7 @@ export function createMesasRouter() {
             req.tenantId
           ]
         );
-        await txRun(client, "UPDATE mesas SET status='fechada', opened_at=NULL WHERE id=? AND tenant_id=?", [req.params.id, req.tenantId]);
+        await txRun(client, "UPDATE mesas SET status='fechada', opened_at=NULL, garcom_id=NULL, garcom_nome=NULL WHERE id=? AND tenant_id=?", [req.params.id, req.tenantId]);
         const kdsOpen = await txQ1<{ id: number }>(
           client,
           `SELECT id FROM pedidos WHERE tenant_id=? AND observation=? AND ${buildOperationalKdsOrderClause()} ORDER BY id DESC LIMIT 1`,
