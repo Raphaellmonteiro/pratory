@@ -445,6 +445,9 @@ export async function runMigrations() {
       ALTER TABLE func_horas_extras ADD COLUMN IF NOT EXISTS minutos_pago_folha INTEGER NULL;
       ALTER TABLE func_horas_extras ADD COLUMN IF NOT EXISTS destino_pendente INTEGER NOT NULL DEFAULT 0;
       ALTER TABLE funcionarios ADD COLUMN IF NOT EXISTS tipo_contrato TEXT DEFAULT 'fixo';
+      ALTER TABLE caixa ADD COLUMN IF NOT EXISTS total_vendas_dinheiro REAL;
+      ALTER TABLE caixa ADD COLUMN IF NOT EXISTS total_esperado REAL;
+      ALTER TABLE caixa ADD COLUMN IF NOT EXISTS diferenca REAL;
 
       CREATE TABLE IF NOT EXISTS func_banco_horas_mov (
         id SERIAL PRIMARY KEY,

@@ -9,20 +9,20 @@ export default function CloseCaixaModal({ onClose, onSuccess, token }: { onClose
 
   useEffect(() => {
     const fetchSummary = async () => {
+      // Importante: os valores vêm de /api/caixa/hoje, que soma os pagamentos
+      // apenas dentro da janela da sessão atual do caixa (desde que foi aberto
+      // até agora). Não usar /api/dashboard/cash-report aqui, pois esse endpoint
+      // soma o dia inteiro e "vaza" vendas de sessões de caixa anteriores já
+      // fechadas no mesmo dia (ex: período da manhã) para o fechamento da tarde.
       const res = await fetch('/api/caixa/hoje', {
         headers: { Authorization: `Bearer ${token}` }
       });
       const caixa = await res.json();
-      
-      const salesRes = await fetch('/api/dashboard/cash-report', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const sales = await salesRes.json();
-      
+
       setSummary({
         fundo: caixa.fundo_inicial,
-        vendasDinheiro: sales.cash,
-        esperado: caixa.fundo_inicial + sales.cash
+        vendasDinheiro: caixa.total_vendas_dinheiro || 0,
+        esperado: caixa.total_esperado ?? (caixa.fundo_inicial + (caixa.total_vendas_dinheiro || 0))
       });
     };
     fetchSummary();

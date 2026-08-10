@@ -87,19 +87,60 @@ async function getOpenCaixa(req: Request) {
   return caixa;
 }
 
+/**
+ * Soma as vendas em dinheiro (amount_paid - change_given) restritas à JANELA da sessão
+ * de caixa atual: do momento em que ESTE caixa foi aberto (created_at) até agora.
+ *
+ * Importante: isso é diferente de filtrar por dia inteiro. Como pode haver várias
+ * aberturas/fechamentos de caixa no mesmo dia (ex: abre de manhã, fecha, abre pro
+ * almoço, fecha de novo), filtrar só pela data do caixa somava as vendas do dia
+ * TODO, inclusive de sessões já fechadas anteriormente — fazendo o "Total Esperado"
+ * do fechamento da tarde já vir com o dinheiro da manhã embutido.
+ */
+async function getSessionCashSales(caixa: any, tenantId: any) {
+  const row = await q1(
+    `SELECT COALESCE(SUM(amount_paid-change_given),0) as total
+     FROM pagamentos
+     WHERE method='Dinheiro' AND tenant_id=? AND created_at >= ? AND created_at <= COALESCE(?, NOW())`,
+    [tenantId, caixa.created_at, caixa.closed_at]
+  );
+  return Number(row?.total || 0);
+}
+
+async function getSessionTotals(caixa: any, tenantId: any) {
+  const [pd, dd] = await Promise.all([
+    q1(
+      `SELECT COALESCE(SUM(amount_paid),0) as total FROM pagamentos
+       WHERE tenant_id=? AND created_at >= ? AND created_at <= COALESCE(?, NOW())`,
+      [tenantId, caixa.created_at, caixa.closed_at]
+    ),
+    q1(
+      `SELECT COALESCE(SUM(amount),0) as total FROM despesas
+       WHERE tenant_id=? AND created_at >= ? AND created_at <= COALESCE(?, NOW())`,
+      [tenantId, caixa.created_at, caixa.closed_at]
+    ),
+  ]);
+  return { total_vendas: Number(pd?.total || 0), total_despesas: Number(dd?.total || 0) };
+}
+
 /** Rotas de caixa (abrir/fechar/hoje/histórico). Usado em `/api/caixa` e, por compatibilidade, também em `/api/dashboard`. */
 function registerCaixaRoutes(router: Router) {
   const getCaixaHandler = async (req: Request, res: any) => {
     const caixa = await getOpenCaixa(req);
     if (!caixa) return res.json({ status: 'fechado' });
 
-    const pd = await q1(`SELECT COALESCE(SUM(amount_paid),0) as total FROM pagamentos WHERE (created_at AT TIME ZONE '${TZ}')::date=? AND tenant_id=?`, [caixa.data, req.tenantId]);
-    const dd = await q1(`SELECT COALESCE(SUM(amount),0) as total FROM despesas WHERE (created_at AT TIME ZONE '${TZ}')::date=? AND tenant_id=?`, [caixa.data, req.tenantId]);
+    const [{ total_vendas, total_despesas }, totalVendasDinheiro] = await Promise.all([
+      getSessionTotals(caixa, req.tenantId),
+      getSessionCashSales(caixa, req.tenantId),
+    ]);
+    const fundo = Number(caixa.fundo_inicial || 0);
 
     return res.json({
       ...caixa,
-      total_vendas: Number(pd?.total || 0),
-      total_despesas: Number(dd?.total || 0),
+      total_vendas,
+      total_despesas,
+      total_vendas_dinheiro: totalVendasDinheiro,
+      total_esperado: fundo + totalVendasDinheiro,
     });
   };
 
@@ -130,25 +171,27 @@ function registerCaixaRoutes(router: Router) {
     const caixa = await getOpenCaixa(req);
     if (!caixa) return res.status(400).json({ success: false, message: 'Nenhum caixa aberto encontrado.' });
 
-    const vd = await q1(
-      `SELECT COALESCE(SUM(amount_paid-change_given),0) as total
-       FROM pagamentos
-       WHERE method='Dinheiro' AND (created_at AT TIME ZONE '${TZ}')::date=? AND tenant_id=?`,
-      [caixa.data, req.tenantId]
-    );
-    const totalVD = Number(vd?.total || 0);
+    // Fecha a janela da sessão em NOW() antes de somar, e usa esse mesmo instante
+    // no UPDATE abaixo, para que o valor calculado e o `closed_at` gravado sejam
+    // exatamente da mesma sessão (evita pegar vendas de uma sessão futura/anterior).
     const fundo = Number(caixa.fundo_inicial || 0);
+    const totalVD = await getSessionCashSales(caixa, req.tenantId);
+    const totalEsperado = fundo + totalVD;
+    const diferenca = Number(valor_contado) - totalEsperado;
 
     await qRun(
-      "UPDATE caixa SET valor_contado=?,status='fechado',observacao=?,closed_at=NOW() WHERE id=? AND tenant_id=?",
-      [valor_contado, observacao || caixa.observacao, caixa.id, req.tenantId]
+      `UPDATE caixa
+       SET valor_contado=?, status='fechado', observacao=?, closed_at=NOW(),
+           total_vendas_dinheiro=?, total_esperado=?, diferenca=?
+       WHERE id=? AND tenant_id=?`,
+      [valor_contado, observacao || caixa.observacao, totalVD, totalEsperado, diferenca, caixa.id, req.tenantId]
     );
 
     return res.json({
       success: true,
       total_vendas_dinheiro: totalVD,
-      total_esperado: fundo + totalVD,
-      diferenca: valor_contado - (fundo + totalVD),
+      total_esperado: totalEsperado,
+      diferenca,
     });
   };
 
@@ -157,17 +200,41 @@ function registerCaixaRoutes(router: Router) {
 
   router.get('/historico', async (req: Request, res) => {
     const history = await qAll(
-      `SELECT c.*, (SELECT COALESCE(SUM(amount_paid-change_given),0) FROM pagamentos WHERE method='Dinheiro' AND (created_at AT TIME ZONE '${TZ}')::date::text=c.data AND tenant_id=c.tenant_id) as total_vendas_dinheiro
-       FROM caixa c WHERE c.tenant_id=? ORDER BY c.data DESC LIMIT 30`,
+      `SELECT * FROM caixa c WHERE c.tenant_id=? ORDER BY c.data DESC, c.created_at DESC LIMIT 30`,
       [req.tenantId]
     );
 
-    res.json(history.map((h: any) => ({
-      ...h,
-      fundo_inicial: Number(h.fundo_inicial || 0),
-      valor_contado: Number(h.valor_contado || 0),
-      total_vendas_dinheiro: Number(h.total_vendas_dinheiro || 0),
-    })));
+    // Caixas já fechados têm total_vendas_dinheiro/total_esperado/diferenca gravados
+    // no momento do fechamento (janela exata daquela sessão). Caixas ainda abertos
+    // (não deveria ter mais de um, mas por segurança) calculam ao vivo pela mesma janela.
+    const enriched = await Promise.all(
+      history.map(async (h: any) => {
+        const fundo = Number(h.fundo_inicial || 0);
+
+        if (h.status === 'aberto') {
+          const totalVD = await getSessionCashSales(h, req.tenantId);
+          return {
+            ...h,
+            fundo_inicial: fundo,
+            valor_contado: Number(h.valor_contado || 0),
+            total_vendas_dinheiro: totalVD,
+            total_esperado: fundo + totalVD,
+            diferenca: 0,
+          };
+        }
+
+        return {
+          ...h,
+          fundo_inicial: fundo,
+          valor_contado: Number(h.valor_contado || 0),
+          total_vendas_dinheiro: Number(h.total_vendas_dinheiro || 0),
+          total_esperado: Number(h.total_esperado ?? fundo),
+          diferenca: Number(h.diferenca || 0),
+        };
+      })
+    );
+
+    res.json(enriched);
   });
 }
 
