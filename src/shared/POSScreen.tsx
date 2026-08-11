@@ -880,7 +880,13 @@ export default function POSScreen({
           )}
           <div className="grid grid-cols-4 gap-1.5 lg:gap-2">
             {PAY_METHODS.map(m => (
-              <button key={m} type="button" onClick={() => setCurrentPaymentMethod(m)}
+              <button key={m} type="button" onClick={() => {
+                  setCurrentPaymentMethod(m);
+                  // PIX/Débito/Crédito quase sempre fecham o valor exato restante — evita
+                  // ter que digitar o valor de novo no balcão. Dinheiro fica de fora porque
+                  // o caixa costuma receber uma nota arredondada e calcular troco.
+                  if (m !== 'Dinheiro' && remaining > 0) setCurrentAmount(remaining);
+                }}
                 className={`py-2 lg:py-1.5 rounded-lg text-[10px] font-bold border transition-all min-h-[40px] lg:min-h-0 ${
                   currentPaymentMethod === m
                     ? 'border-[#EA1D2C]/35 bg-[#FFF1F2] text-[#9C050B] dark:text-[#ff9aa1]'
@@ -895,21 +901,26 @@ export default function POSScreen({
               </button>
             ))}
           </div>
-          <div className="flex gap-2">
-            <input
-              type="number" placeholder="Valor"
-              value={currentAmount || ''}
-              onChange={e => setCurrentAmount(parseFloat(e.target.value) || 0)}
-              className="flex-1 min-h-[44px] rounded-lg border border-fp-border bg-fp-input px-3 py-2 text-base text-fptext-primary placeholder:text-fptext-muted transition-all focus:border-[#EA1D2C]/45 focus:outline-none md:text-sm"
-            />
-            <button type="button" onClick={addPayment} disabled={currentAmount <= 0}
-              className="min-h-[44px] rounded-lg border border-[#EA1D2C]/25 bg-[#FFF1F2] px-4 py-2 text-sm font-bold text-[#9C050B] transition-all hover:bg-[#FFE5E8] disabled:opacity-30">
-              Adicionar
-            </button>
+          <div>
+            <p className="text-[11px] font-bold text-fptext-secondary uppercase tracking-wider mb-1">
+              Valor a receber {currentPaymentMethod !== 'Dinheiro' ? `(${currentPaymentMethod})` : ''}
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="number" placeholder="R$ 0,00"
+                value={currentAmount || ''}
+                onChange={e => setCurrentAmount(parseFloat(e.target.value) || 0)}
+                className="flex-1 min-h-[48px] rounded-lg border-2 border-fp-border bg-fp-input px-3 py-2 text-lg font-bold text-fptext-primary placeholder:text-fptext-muted placeholder:font-normal transition-all focus:border-[#EA1D2C]/60 focus:outline-none"
+              />
+              <button type="button" onClick={addPayment} disabled={currentAmount <= 0}
+                className="min-h-[48px] rounded-lg border border-[#EA1D2C]/25 bg-[#FFF1F2] px-4 py-2 text-sm font-bold text-[#9C050B] transition-all hover:bg-[#FFE5E8] disabled:opacity-30">
+                Adicionar
+              </button>
+            </div>
           </div>
           {remaining > 0 && (
             <button type="button" onClick={() => setCurrentAmount(remaining)}
-              className="w-full py-2 md:py-1.5 text-[10px] font-bold text-fptext-muted hover:text-fptext-primary border border-dashed border-fp-border hover:border-zinc-400 dark:hover:border-zinc-600 rounded-lg transition-all">
+              className="w-full py-2.5 md:py-2 text-xs font-bold text-[#9C050B] bg-[#FFF1F2] hover:bg-[#FFE5E8] border border-[#EA1D2C]/25 rounded-lg transition-all dark:text-[#ff9aa1]">
               Preencher valor exato — R$ {remaining.toFixed(2)}
             </button>
           )}

@@ -1200,13 +1200,28 @@ export async function createOrder(data: CreateOrderInput, tenantId: TenantId) {
       );
 
       await insertOrderItems(client, orderId, input.items, tenantId);
+
+      // Pedido de balcão nasce com status 'Em Preparo' por padrão — mas se TODOS os
+      // itens forem "sem produção" (production_type='none'), o pedido não deve subir
+      // pro quadro de Operação/KDS. Mesma regra já usada na troca manual de status
+      // (updateOrderStatus) e na confirmação de pedidos via QR (confirmQrOrder).
+      let effectiveStatus = input.status;
+      if (effectiveStatus === 'Em Preparo' && !(await orderHasPreparationItems(client, orderId, tenantId))) {
+        effectiveStatus = 'Pronto';
+        await txRun(
+          client,
+          'UPDATE pedidos SET status=? WHERE id=? AND tenant_id=?',
+          [effectiveStatus, orderId, tenantId]
+        );
+      }
+
       await processStockDeduction(client, input.items, tenantId, orderId, inventoryEnabled);
       await savePayments(client, orderId, input.payments, tenantId);
       await createOrderEvent(client, {
         pedidoId: orderId,
         tenantId,
         tipo: 'CRIACAO',
-        statusNovo: input.status,
+        statusNovo: effectiveStatus,
         valor: input.total_amount,
         payload: {
           origem: 'ordersService.createOrder',
@@ -1237,7 +1252,7 @@ export async function createOrder(data: CreateOrderInput, tenantId: TenantId) {
         resolvedClienteId,
         paymentMethod,
         customerName: clienteNome,
-        status: input.status,
+        status: effectiveStatus,
       };
     });
 
