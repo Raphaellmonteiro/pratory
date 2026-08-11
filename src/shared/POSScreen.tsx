@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspens
 import {
   ShoppingCart, Plus, Minus, Trash2, CheckCircle2, ShoppingBag,
   X, Search, Printer, Barcode, ScanLine, ChefHat, UserPlus,
+  Banknote, QrCode, CreditCard,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Product, OrderItem, PaymentMethod } from '../types';
@@ -31,6 +32,14 @@ const PosClienteModal = lazy(() => import('./PosClienteModal'));
 
 // ── Constantes de estilo ──────────────────────────────────────────────────────
 const PAY_METHODS: PaymentMethod[] = ['Dinheiro', 'PIX', 'Débito', 'Crédito'];
+
+// Ícone + cor própria por método — ajuda a reconhecer de longe, sem precisar ler o texto.
+const PAY_METHOD_STYLE: Record<PaymentMethod, { icon: any; selected: string; text: string }> = {
+  'Dinheiro': { icon: Banknote,    selected: 'border-emerald-500/50 bg-emerald-50 dark:bg-emerald-500/10',  text: 'text-emerald-700 dark:text-emerald-400' },
+  'PIX':      { icon: QrCode,      selected: 'border-sky-500/50 bg-sky-50 dark:bg-sky-500/10',              text: 'text-sky-700 dark:text-sky-400' },
+  'Débito':   { icon: CreditCard,  selected: 'border-violet-500/50 bg-violet-50 dark:bg-violet-500/10',     text: 'text-violet-700 dark:text-violet-400' },
+  'Crédito':  { icon: CreditCard,  selected: 'border-orange-500/50 bg-orange-50 dark:bg-orange-500/10',     text: 'text-orange-700 dark:text-orange-400' },
+};
 
 const PAY_ICON: Record<string, string> = {
   Dinheiro: '💵',
@@ -864,7 +873,7 @@ export default function POSScreen({
 
         {/* Pagamentos */}
         <div className="border-t border-fp-border bg-white px-2.5 py-2.5 space-y-2.5 md:px-3 md:py-3 md:space-y-3 xl:px-4 xl:py-3 [@media(max-height:700px)]:px-2 [@media(max-height:700px)]:py-2 [@media(max-height:700px)]:space-y-2">
-          <p className="text-[10px] font-bold text-fptext-muted uppercase tracking-wider">Pagamentos Adicionados</p>
+          <p className="text-xs font-bold text-fptext-muted uppercase tracking-wider">Pagamentos Adicionados</p>
           {payments.length > 0 && (
             <div className="space-y-1.5">
               {payments.map((p, i) => (
@@ -879,30 +888,36 @@ export default function POSScreen({
             </div>
           )}
           <div className="grid grid-cols-4 gap-1.5 lg:gap-2">
-            {PAY_METHODS.map(m => (
-              <button key={m} type="button" onClick={() => {
-                  setCurrentPaymentMethod(m);
-                  // PIX/Débito/Crédito quase sempre fecham o valor exato restante — evita
-                  // ter que digitar o valor de novo no balcão. Dinheiro fica de fora porque
-                  // o caixa costuma receber uma nota arredondada e calcular troco.
-                  if (m !== 'Dinheiro' && remaining > 0) setCurrentAmount(remaining);
-                }}
-                className={`py-2 lg:py-1.5 rounded-lg text-[10px] font-bold border transition-all min-h-[40px] lg:min-h-0 ${
-                  currentPaymentMethod === m
-                    ? 'border-[#EA1D2C]/35 bg-[#FFF1F2] text-[#9C050B] dark:text-[#ff9aa1]'
-                    : 'bg-fp-secondary border-fp-border text-fptext-muted hover:border-zinc-400 hover:text-fptext-primary dark:hover:border-zinc-600 dark:hover:text-zinc-300'
-                }`}>
-                <span>{m}</span>
-                {getTaxa(m) > 0 && (
-                  <span className={`block text-[9px] font-bold mt-0.5 ${currentPaymentMethod === m ? 'text-[#9C050B] dark:text-[#ff9aa1]' : 'text-fptext-muted'}`}>
-                    +{getTaxa(m)}%
-                  </span>
-                )}
-              </button>
-            ))}
+            {PAY_METHODS.map(m => {
+              const style = PAY_METHOD_STYLE[m];
+              const Icon = style.icon;
+              const isSelected = currentPaymentMethod === m;
+              return (
+                <button key={m} type="button" onClick={() => {
+                    setCurrentPaymentMethod(m);
+                    // PIX/Débito/Crédito quase sempre fecham o valor exato restante — evita
+                    // ter que digitar o valor de novo no balcão. Dinheiro fica de fora porque
+                    // o caixa costuma receber uma nota arredondada e calcular troco.
+                    if (m !== 'Dinheiro' && remaining > 0) setCurrentAmount(remaining);
+                  }}
+                  className={`flex flex-col items-center gap-0.5 py-2.5 lg:py-2 rounded-lg text-[11px] font-bold border-2 transition-all min-h-[52px] lg:min-h-[48px] ${
+                    isSelected
+                      ? `${style.selected} ${style.text}`
+                      : 'bg-fp-secondary border-fp-border text-fptext-muted hover:border-zinc-400 hover:text-fptext-primary dark:hover:border-zinc-600 dark:hover:text-zinc-300'
+                  }`}>
+                  <Icon size={16} strokeWidth={2.25} />
+                  <span>{m}</span>
+                  {getTaxa(m) > 0 && (
+                    <span className={`block text-[9px] font-bold ${isSelected ? style.text : 'text-fptext-muted'}`}>
+                      +{getTaxa(m)}%
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
           <div>
-            <p className="text-[11px] font-bold text-fptext-secondary uppercase tracking-wider mb-1 truncate">
+            <p className="text-xs font-bold text-fptext-secondary uppercase tracking-wider mb-1 truncate">
               Valor a receber {currentPaymentMethod !== 'Dinheiro' ? `(${currentPaymentMethod})` : ''}
             </p>
             <div className="flex gap-2">
@@ -913,33 +928,33 @@ export default function POSScreen({
                 className="min-w-0 flex-1 min-h-[48px] rounded-lg border-2 border-fp-border bg-fp-input px-3 py-2 text-lg font-bold text-fptext-primary placeholder:text-fptext-muted placeholder:font-normal transition-all focus:border-[#EA1D2C]/60 focus:outline-none"
               />
               <button type="button" onClick={addPayment} disabled={currentAmount <= 0}
-                className="shrink-0 min-h-[48px] rounded-lg border border-[#EA1D2C]/25 bg-[#FFF1F2] px-3 md:px-4 py-2 text-sm font-bold text-[#9C050B] transition-all hover:bg-[#FFE5E8] disabled:opacity-30">
+                className="shrink-0 min-h-[48px] rounded-lg bg-[#EA1D2C] px-3 md:px-4 py-2 text-sm font-bold text-white shadow-md shadow-[#EA1D2C]/20 transition-all hover:bg-[#9C050B] disabled:opacity-30 disabled:shadow-none">
                 Adicionar
               </button>
             </div>
           </div>
           {remaining > 0 && (
             <button type="button" onClick={() => setCurrentAmount(remaining)}
-              className="w-full py-2.5 md:py-2 text-xs font-bold text-[#9C050B] bg-[#FFF1F2] hover:bg-[#FFE5E8] border border-[#EA1D2C]/25 rounded-lg transition-all dark:text-[#ff9aa1]">
+              className="w-full py-2.5 md:py-2 text-xs font-bold text-[#9C050B] bg-[#FFF1F2] hover:bg-[#FFE5E8] border-2 border-[#EA1D2C]/40 rounded-lg transition-all dark:text-[#ff9aa1]">
               Preencher valor exato — R$ {remaining.toFixed(2)}
             </button>
           )}
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <p className="text-[9px] font-bold text-fptext-muted uppercase tracking-wider mb-0.5">Restante</p>
-              <div className={`min-h-9 flex items-center justify-center font-bold text-xs rounded-lg border ${remaining > 0 ? 'bg-red-500/10 text-red-600 border-red-500/30 dark:text-red-400' : 'bg-fp-secondary text-fptext-muted border-fp-border'}`}>
+              <p className="text-[11px] font-bold text-fptext-muted uppercase tracking-wider mb-0.5">Restante</p>
+              <div className={`min-h-9 flex items-center justify-center font-bold text-sm rounded-lg border ${remaining > 0 ? 'bg-red-500/10 text-red-600 border-red-500/30 dark:text-red-400' : 'bg-fp-secondary text-fptext-muted border-fp-border'}`}>
                 R$ {Math.max(0, remaining).toFixed(2)}
               </div>
             </div>
             <div>
-              <p className="text-[9px] font-bold text-fptext-muted uppercase tracking-wider mb-0.5">Troco</p>
-              <div className={`min-h-9 flex items-center justify-center font-bold text-xs rounded-lg border ${change > 0 ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-400' : 'bg-fp-secondary text-fptext-muted border-fp-border'}`}>
+              <p className="text-[11px] font-bold text-fptext-muted uppercase tracking-wider mb-0.5">Troco</p>
+              <div className={`min-h-9 flex items-center justify-center font-bold text-sm rounded-lg border ${change > 0 ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-400' : 'bg-fp-secondary text-fptext-muted border-fp-border'}`}>
                 R$ {change.toFixed(2)}
               </div>
             </div>
           </div>
           <div>
-            <p className="text-[9px] font-bold text-fptext-muted uppercase tracking-wider mb-0.5">Observações</p>
+            <p className="text-[11px] font-bold text-fptext-muted uppercase tracking-wider mb-0.5">Observações</p>
             <input
               placeholder="Ex: Sem feijão, mais carne..."
               value={observation}
