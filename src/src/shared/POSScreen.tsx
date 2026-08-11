@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspens
 import {
   ShoppingCart, Plus, Minus, Trash2, CheckCircle2, ShoppingBag,
   X, Search, Printer, Barcode, ScanLine, ChefHat, UserPlus,
-  Banknote, QrCode, CreditCard,
+  Banknote, QrCode, CreditCard, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Product, OrderItem, PaymentMethod } from '../types';
@@ -322,6 +322,24 @@ export default function POSScreen({
   const [barcodeToast, setBarcodeToast]         = useState<string | null>(null);
   const searchRef    = useRef<HTMLInputElement>(null);
   const barcodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const categoryScrollRef = useRef<HTMLDivElement>(null);
+  const [categoryScroll, setCategoryScroll] = useState({ canLeft: false, canRight: false });
+
+  const updateCategoryScroll = useCallback(() => {
+    const el = categoryScrollRef.current;
+    if (!el) return;
+    setCategoryScroll({
+      canLeft: el.scrollLeft > 4,
+      canRight: el.scrollLeft + el.clientWidth < el.scrollWidth - 4,
+    });
+  }, []);
+
+  const scrollCategories = useCallback((dir: -1 | 1) => {
+    const el = categoryScrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * el.clientWidth * 0.7, behavior: 'smooth' });
+  }, []);
+
   // ─── Derivados ────────────────────────────────────────────────────────────
   const total     = useMemo(() => cart.reduce((a, i) => a + i.price_at_time * i.quantity, 0), [cart]);
   const totalPaid = useMemo(() => payments.reduce((a, p) => a + p.amount_paid, 0), [payments]);
@@ -611,6 +629,14 @@ export default function POSScreen({
   }, []);
 
   useEffect(() => { searchRef.current?.focus(); }, []);
+
+  // Recalcula as setas de navegação da faixa de categorias sempre que a lista muda
+  // (ex: trocou de período, filtrou por busca) ou a tela é redimensionada.
+  useEffect(() => {
+    updateCategoryScroll();
+    window.addEventListener('resize', updateCategoryScroll);
+    return () => window.removeEventListener('resize', updateCategoryScroll);
+  }, [categories, updateCategoryScroll]);
 
   useEffect(() => {
     if (cart.length === 0) {
@@ -1138,20 +1164,50 @@ export default function POSScreen({
 
         {/* Abas de categoria */}
         <div className="px-2.5 pb-1.5 shrink-0 md:px-3 md:pb-2 [@media(max-height:640px)]:px-2 [@media(max-height:640px)]:pb-1">
-          <div className="flex gap-1.5 overflow-x-auto pb-0.5 md:gap-2 md:pb-1" style={{ scrollbarWidth: 'none' }}>
-            {['Todas', ...categories].map(cat => (
+          <div className="relative flex items-center gap-1">
+            {categoryScroll.canLeft && (
               <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-2 min-h-[40px] text-xs rounded-md border transition-all duration-200 shrink-0 max-md:min-h-[44px] max-md:px-4 max-md:py-2.5 max-md:text-sm max-md:rounded-lg md:min-h-0 md:px-3 md:py-1.5 md:text-sm md:rounded-lg flex items-center font-bold whitespace-nowrap [@media(max-height:640px)]:min-h-0 [@media(max-height:640px)]:px-2.5 [@media(max-height:640px)]:py-1 [@media(max-height:640px)]:text-xs ${
-                  selectedCategory === cat
-                    ? 'border-[#EA1D2C] bg-[#EA1D2C] text-white shadow-md shadow-[#EA1D2C]/18 ring-2 ring-[#EA1D2C]/14'
-                    : 'bg-fp-secondary/90 border-fp-border text-fptext-muted hover:border-zinc-400 hover:text-fptext-primary hover:bg-fp-hover dark:border-zinc-600 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-200 dark:hover:bg-zinc-800'
-                }`}
+                type="button"
+                onClick={() => scrollCategories(-1)}
+                aria-label="Categorias anteriores"
+                className="shrink-0 z-10 flex items-center justify-center w-7 h-7 rounded-full border border-fp-border bg-white shadow-md text-fptext-primary hover:bg-fp-hover dark:bg-zinc-800"
               >
-                {cat}
+                <ChevronLeft size={16} />
               </button>
-            ))}
+            )}
+            <div
+              ref={categoryScrollRef}
+              onScroll={updateCategoryScroll}
+              className="flex gap-1.5 overflow-x-auto pb-0.5 md:gap-2 md:pb-1 scroll-smooth"
+              style={{ scrollbarWidth: 'none' }}
+            >
+              {['Todas', ...categories].map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-3 py-2 min-h-[40px] text-xs rounded-md border transition-all duration-200 shrink-0 max-md:min-h-[44px] max-md:px-4 max-md:py-2.5 max-md:text-sm max-md:rounded-lg md:min-h-0 md:px-3 md:py-1.5 md:text-sm md:rounded-lg flex items-center font-bold whitespace-nowrap [@media(max-height:640px)]:min-h-0 [@media(max-height:640px)]:px-2.5 [@media(max-height:640px)]:py-1 [@media(max-height:640px)]:text-xs ${
+                    selectedCategory === cat
+                      ? 'border-[#EA1D2C] bg-[#EA1D2C] text-white shadow-md shadow-[#EA1D2C]/18 ring-2 ring-[#EA1D2C]/14'
+                      : 'bg-fp-secondary/90 border-fp-border text-fptext-muted hover:border-zinc-400 hover:text-fptext-primary hover:bg-fp-hover dark:border-zinc-600 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-200 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+            {categoryScroll.canRight && (
+              <>
+                <div className="pointer-events-none absolute right-7 top-0 bottom-0 w-8 bg-gradient-to-r from-transparent to-fp-app md:to-white" />
+                <button
+                  type="button"
+                  onClick={() => scrollCategories(1)}
+                  aria-label="Mais categorias"
+                  className="shrink-0 z-10 flex items-center justify-center w-7 h-7 rounded-full border border-fp-border bg-white shadow-md text-fptext-primary hover:bg-fp-hover dark:bg-zinc-800"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </>
+            )}
           </div>
         </div>
 
