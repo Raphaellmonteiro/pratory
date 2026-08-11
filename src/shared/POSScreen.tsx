@@ -192,12 +192,14 @@ const ProductCard = React.memo(function ProductCard({
   emojiDefault,
   onClick,
   disabled,
+  shortcutLabel,
 }: {
   product: Product;
   categoryEmojis?: Record<string, string>;
   emojiDefault?: string;
   onClick: (p: Product) => void;
   disabled: boolean;
+  shortcutLabel?: string;
 }) {
   const isPromo = !!(product as any).em_promocao || !!(product as any).desconto;
   const isDestaque = !!(product as any).destaque || !!(product as any).mais_vendido;
@@ -235,6 +237,14 @@ const ProductCard = React.memo(function ProductCard({
         )}
         {thumbSrc && (
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+        )}
+        {shortcutLabel && (
+          <span
+            className="absolute top-1 right-1 md:top-1.5 md:right-1.5 rounded-md bg-zinc-900/80 px-1 py-px text-[8px] font-black text-white tracking-wide backdrop-blur-sm md:px-1.5 md:py-0.5 md:text-[9px] hidden md:inline-block"
+            title={`Atalho ${shortcutLabel}`}
+          >
+            {shortcutLabel}
+          </span>
         )}
         <div className="absolute bottom-1 left-1 md:bottom-1.5 md:left-1.5 flex flex-wrap gap-0.5 md:gap-1 max-w-[calc(100%-0.5rem)]">
           {isDestaque && (
@@ -424,6 +434,15 @@ export default function POSScreen({
       })
       .slice(0, 8)
   ), [products]);
+
+  // Mapa produto → "F1".."F8" pra exibir o atalho direto no card, sem precisar de faixa separada.
+  const shortcutLabelByProductId = useMemo(() => {
+    const map = new Map<number, string>();
+    topShortcutProducts.forEach((product, index) => {
+      map.set(product.id, `F${index + 1}`);
+    });
+    return map;
+  }, [topShortcutProducts]);
 
   // ─── Taxas de pagamento (após todos os useState e useMemo simples) ──────────
   const getTaxa = (method: PaymentMethod): number => {
@@ -1108,29 +1127,6 @@ export default function POSScreen({
           </div>
         </div>
 
-        {topShortcutProducts.length > 0 && (
-          <div className="hidden md:block px-2.5 pb-1.5 shrink-0 md:px-3 md:pb-2 [@media(max-height:640px)]:pb-1">
-            <div className="rounded-lg md:rounded-xl border border-fp-border bg-fp-card px-2.5 py-1.5 md:px-3 md:py-2 [@media(max-height:640px)]:py-1.5">
-              <div className="flex items-center justify-between gap-2 min-w-0">
-                <p className="text-[9px] font-bold text-fptext-muted uppercase tracking-wider md:text-[10px] shrink-0">Atalhos</p>
-                <p className="text-[9px] text-fptext-muted truncate min-w-0 md:text-[10px]">Ctrl+F • Ctrl+Enter</p>
-              </div>
-              <p className="mt-1 text-[9px] text-fptext-muted [@media(max-height:640px)]:hidden md:text-[10px]">Alt+↑/↓ item • Ctrl+Backspace limpa</p>
-              <div className="mt-1.5 flex flex-wrap gap-1 md:mt-2 md:gap-1.5 [@media(max-height:640px)]:mt-1">
-                {topShortcutProducts.map((product, index) => (
-                  <span
-                    key={product.id}
-                    className="max-w-[140px] min-[1100px]:max-w-[180px] truncate rounded-md border border-fp-border bg-fp-secondary px-1.5 py-0.5 text-[9px] font-medium text-fptext-secondary md:px-2 md:py-1 md:text-[10px]"
-                    title={product.name}
-                  >
-                    F{index + 1} {product.name}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Barra fixa de período (café da manhã / almoço / jantar) — só aparece se o cardápio tiver essas categorias */}
         {periodShortcuts.length > 0 && (
           <div className="px-2.5 pb-1.5 shrink-0 md:px-3 md:pb-2 [@media(max-height:640px)]:px-2 [@media(max-height:640px)]:pb-1">
@@ -1229,6 +1225,7 @@ export default function POSScreen({
                   emojiDefault={cfg.emojiDefault}
                   onClick={handleProductClick}
                   disabled={carregandoVariacoes}
+                  shortcutLabel={shortcutLabelByProductId.get(product.id)}
                 />
               ))}
             </div>

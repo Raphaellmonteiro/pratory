@@ -145,6 +145,42 @@ export default function GarcomCadastroModal({ token, onClose }: { token: string;
   const [carregandoRelatorio, setCarregandoRelatorio] = useState(false);
   const [salvandoModo, setSalvandoModo] = useState(false);
 
+  // ── Padrão de taxa de serviço em mesas novas ──────────────────────────
+  const [taxaPadraoAtiva, setTaxaPadraoAtiva] = useState(true);
+  const [taxaPadraoPercentual, setTaxaPadraoPercentual] = useState('10');
+  const [salvandoTaxaPadrao, setSalvandoTaxaPadrao] = useState(false);
+
+  const fetchTaxaPadrao = useCallback(async () => {
+    try {
+      const res = await fetch('/api/mesas/garcons/config-taxa-padrao', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data?.success) {
+        setTaxaPadraoAtiva(Boolean(data.taxa_servico_padrao_ativa));
+        setTaxaPadraoPercentual(String(data.taxa_servico_padrao_percentual ?? 10));
+      }
+    } catch {
+      // mantém os valores padrão da tela em caso de falha
+    }
+  }, [token]);
+
+  useEffect(() => { if (aba === 'relatorio') fetchTaxaPadrao(); }, [aba, fetchTaxaPadrao]);
+
+  const salvarTaxaPadrao = async (ativa: boolean, percentualStr: string) => {
+    setSalvandoTaxaPadrao(true);
+    try {
+      const percentual = Math.max(0, Number(percentualStr.replace(',', '.')) || 0);
+      await fetch('/api/mesas/garcons/config-taxa-padrao', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ativa, percentual }),
+      });
+    } finally {
+      setSalvandoTaxaPadrao(false);
+    }
+  };
+
   const fetchRelatorio = useCallback(async () => {
     setCarregandoRelatorio(true);
     try {
@@ -410,6 +446,52 @@ export default function GarcomCadastroModal({ token, onClose }: { token: string;
                 <p className="text-sm text-zinc-500 py-6 text-center">Não foi possível carregar o relatório.</p>
               ) : (
                 <>
+                  <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 mb-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-bold text-zinc-900">Cobrar taxa de serviço nas mesas por padrão?</p>
+                        <p className="text-[11px] text-zinc-500 mt-0.5">
+                          Vale só pra mesas abertas a partir de agora. Dá pra ligar/desligar em cada mesa na hora, se precisar de exceção.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={taxaPadraoAtiva}
+                        disabled={salvandoTaxaPadrao}
+                        onClick={() => {
+                          const next = !taxaPadraoAtiva;
+                          setTaxaPadraoAtiva(next);
+                          void salvarTaxaPadrao(next, taxaPadraoPercentual);
+                        }}
+                        className={`shrink-0 relative w-12 h-7 rounded-full transition-colors disabled:opacity-50 ${
+                          taxaPadraoAtiva ? 'bg-[#EA1D2C]' : 'bg-zinc-300'
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform ${
+                            taxaPadraoAtiva ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                    {taxaPadraoAtiva && (
+                      <div className="mt-3 flex items-center gap-2">
+                        <label className="text-xs font-bold text-zinc-500">Percentual padrão</label>
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.5"
+                          value={taxaPadraoPercentual}
+                          onChange={(e) => setTaxaPadraoPercentual(e.target.value)}
+                          onBlur={() => void salvarTaxaPadrao(taxaPadraoAtiva, taxaPadraoPercentual)}
+                          className="w-20 px-2 py-1.5 bg-white border border-zinc-200 rounded-lg text-sm font-bold"
+                        />
+                        <span className="text-xs text-zinc-500">%</span>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 mb-4">
                     <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Como dividir a taxa de serviço?</p>
                     <div className="grid grid-cols-2 gap-2">

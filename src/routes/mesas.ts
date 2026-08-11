@@ -668,6 +668,39 @@ export function createMesasRouter() {
     } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
   });
 
+  // GET /api/mesas/garcons/config-taxa-padrao — preferência atual do estabelecimento
+  // pra taxa de serviço em mesas novas (ativa? qual %?).
+  router.get('/garcons/config-taxa-padrao', async (req: Request, res) => {
+    try {
+      if ((req as any).isGarcomTemp) return res.status(403).json({ error: 'Acesso não permitido.' });
+      const clienteRow = await q1(
+        'SELECT taxa_servico_padrao_ativa, taxa_servico_padrao_percentual FROM clientes WHERE id=?',
+        [req.tenantId]
+      );
+      res.json({
+        success: true,
+        taxa_servico_padrao_ativa: clienteRow?.taxa_servico_padrao_ativa == null ? true : Boolean(Number(clienteRow.taxa_servico_padrao_ativa)),
+        taxa_servico_padrao_percentual: clienteRow?.taxa_servico_padrao_percentual == null ? 10 : Number(clienteRow.taxa_servico_padrao_percentual),
+      });
+    } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
+  });
+
+  // PUT /api/mesas/garcons/config-taxa-padrao — define se toda mesa nova já
+  // nasce com a taxa de serviço ligada e em qual percentual. Não mexe em
+  // mesas já abertas — só nas próximas.
+  router.put('/garcons/config-taxa-padrao', async (req: Request, res) => {
+    try {
+      if ((req as any).isGarcomTemp) return res.status(403).json({ error: 'Acesso não permitido.' });
+      const ativa = toFlag(req.body?.ativa, true) ? 1 : 0;
+      const percentual = Math.max(0, toNumber(req.body?.percentual, 10));
+      await qRun(
+        'UPDATE clientes SET taxa_servico_padrao_ativa=?, taxa_servico_padrao_percentual=? WHERE id=?',
+        [ativa, percentual, req.tenantId]
+      );
+      res.json({ success: true, taxa_servico_padrao_ativa: Boolean(ativa), taxa_servico_padrao_percentual: percentual });
+    } catch (e: any) { sendInternalError(res, 'routes/mesas', e); }
+  });
+
   router.put('/garcons/:id', async (req: Request, res) => {
     try {
       if ((req as any).isGarcomTemp) return res.status(403).json({ error: 'Acesso não permitido.' });
@@ -964,6 +997,15 @@ export function createMesasRouter() {
       if (mesa.status==='aberta') return res.json({ success:true, message:'Mesa já estava aberta' });
       const garcomId = (req as any).isGarcomTemp ? ((req as any).garcomId ?? null) : null;
       const garcomNome = (req as any).isGarcomTemp ? ((req as any).garcomNome || null) : null;
+      // Usa a preferência salva pelo estabelecimento (Operação > Garçons) em vez do
+      // padrão fixo de 10% ativo — assim a mesa já nasce do jeito que o dono configurou,
+      // sem precisar ir remover a taxa toda vez.
+      const clienteRow = await q1(
+        'SELECT taxa_servico_padrao_ativa, taxa_servico_padrao_percentual FROM clientes WHERE id=?',
+        [req.tenantId]
+      );
+      const taxaPadraoAtiva = clienteRow?.taxa_servico_padrao_ativa == null ? 1 : Number(clienteRow.taxa_servico_padrao_ativa);
+      const taxaPadraoPercentual = clienteRow?.taxa_servico_padrao_percentual == null ? 10 : Number(clienteRow.taxa_servico_padrao_percentual);
       await withTx(async (client) => {
         await txRun(
           client,
@@ -972,8 +1014,8 @@ export function createMesasRouter() {
         );
         await txRun(
           client,
-          "INSERT INTO comandas (mesa_id,tenant_id,status,garcom_id,garcom_nome) VALUES (?,?,'aberta',?,?)",
-          [req.params.id, req.tenantId, garcomId, garcomNome]
+          "INSERT INTO comandas (mesa_id,tenant_id,status,garcom_id,garcom_nome,taxa_servico_ativa,taxa_servico_percentual) VALUES (?,?,'aberta',?,?,?,?)",
+          [req.params.id, req.tenantId, garcomId, garcomNome, taxaPadraoAtiva, taxaPadraoPercentual]
         );
       });
       if ((req as any).isGarcomTemp) {

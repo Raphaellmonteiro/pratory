@@ -48,6 +48,14 @@ export async function ensureGarconsSchema(): Promise<void> {
       // vantagem só por conseguir abrir mais mesas).
       await query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS taxa_servico_modo_divisao TEXT DEFAULT 'individual'`);
 
+      // Preferência do estabelecimento: toda mesa nova nasce já com a taxa de
+      // serviço ligada/desligada e no percentual configurado aqui, em vez de
+      // sempre nascer em 10% ativo e o dono ter que ir remover manualmente.
+      // O toggle por comanda (PUT /mesas/:id/comanda/extras) continua existindo
+      // pra exceções pontuais — isso só muda o valor inicial.
+      await query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS taxa_servico_padrao_ativa INTEGER NOT NULL DEFAULT 1`);
+      await query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS taxa_servico_padrao_percentual REAL NOT NULL DEFAULT 10`);
+
       await query(`CREATE INDEX IF NOT EXISTS idx_pedidos_garcom ON pedidos(tenant_id, garcom_id)`);
     })().catch((err) => {
       promise = null;
