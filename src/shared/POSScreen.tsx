@@ -2,11 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspens
 import {
   ShoppingCart, Plus, Minus, Trash2, CheckCircle2, ShoppingBag,
   X, Search, Printer, Barcode, ScanLine, ChefHat, UserPlus,
-<<<<<<< HEAD
   Banknote, QrCode, CreditCard, ChevronLeft, ChevronRight,
-=======
-  Banknote, QrCode, CreditCard,
->>>>>>> 8a96b2fd2daa5266bdb126622fc01e8498e31715
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Product, OrderItem, PaymentMethod } from '../types';
