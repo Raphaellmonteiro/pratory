@@ -33,6 +33,16 @@ const PosClienteModal = lazy(() => import('./PosClienteModal'));
 // ── Constantes de estilo ──────────────────────────────────────────────────────
 const PAY_METHODS: PaymentMethod[] = ['Dinheiro', 'PIX', 'Débito', 'Crédito'];
 
+// Períodos do dia usados na barra de atalho fixa do balcão (café da manhã / almoço / jantar).
+// `match` identifica a categoria "prato do período" (ex: produto "JANTAR - R$12,00" na categoria "Jantar").
+// `priority` lista categorias que devem subir pro topo da faixa quando esse período está ativo
+// (ex: de noite, o restaurante vende mais bebida/petisco junto do jantar).
+const MEAL_PERIODS: Array<{ key: string; label: string; emoji: string; startHour: number; endHour: number; match: string[]; priority: string[] }> = [
+  { key: 'cafe',   label: 'Café da Manhã', emoji: '☕', startHour: 5,    endHour: 10.5, match: ['café da manhã', 'cafe da manha'], priority: [] },
+  { key: 'almoco', label: 'Almoço',        emoji: '🍽️', startHour: 10.5, endHour: 16,   match: ['almoço', 'almoco'],                priority: [] },
+  { key: 'jantar', label: 'Jantar',        emoji: '🌙', startHour: 17.5, endHour: 24,   match: ['jantar'],                          priority: ['cerveja', 'petisco', 'refrigerante', 'bebida', 'suco', 'drink', 'caldinho'] },
+];
+
 // Ícone + cor própria por método — ajuda a reconhecer de longe, sem precisar ler o texto.
 const PAY_METHOD_STYLE: Record<PaymentMethod, { icon: any; selected: string; text: string }> = {
   'Dinheiro': { icon: Banknote,    selected: 'border-emerald-500/50 bg-emerald-50 dark:bg-emerald-500/10',  text: 'text-emerald-700 dark:text-emerald-400' },
@@ -346,9 +356,36 @@ export default function POSScreen({
     );
   }, [products, debouncedSearch]);
 
-  const categories = useMemo(() =>
+  const categoriesRaw = useMemo(() =>
     [...new Set(filteredProducts.map(p => p.category))].sort(),
   [filteredProducts]);
+
+  // Descobre a hora atual e qual período (café/almoço/jantar) está ativo agora.
+  const activePeriod = useMemo(() => {
+    const now = new Date();
+    const h = now.getHours() + now.getMinutes() / 60;
+    return MEAL_PERIODS.find(p => h >= p.startHour && h < p.endHour) ?? null;
+  }, []);
+
+  // Para cada período, acha a categoria real do cardápio que corresponde a ele
+  // (ex: período "jantar" → categoria "Jantar" cadastrada pelo restaurante).
+  const periodShortcuts = useMemo(() => {
+    return MEAL_PERIODS
+      .map(period => {
+        const cat = categoriesRaw.find(c => period.match.some(m => c.toLowerCase().includes(m)));
+        return cat ? { ...period, category: cat } : null;
+      })
+      .filter((p): p is (typeof MEAL_PERIODS[number] & { category: string }) => p !== null);
+  }, [categoriesRaw]);
+
+  // Reordena a faixa de categorias: se o período ativo tem categorias prioritárias
+  // (ex: de noite → cerveja/petisco sobem antes do resto), elas aparecem primeiro.
+  const categories = useMemo(() => {
+    if (!activePeriod || activePeriod.priority.length === 0) return categoriesRaw;
+    const priorityMatches = categoriesRaw.filter(c => activePeriod.priority.some(p => c.toLowerCase().includes(p)));
+    const rest = categoriesRaw.filter(c => !priorityMatches.includes(c));
+    return [...priorityMatches, ...rest];
+  }, [categoriesRaw, activePeriod]);
 
   const displayProducts = useMemo(() =>
     selectedCategory === 'Todas'
@@ -1064,6 +1101,37 @@ export default function POSScreen({
                   </span>
                 ))}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Barra fixa de período (café da manhã / almoço / jantar) — só aparece se o cardápio tiver essas categorias */}
+        {periodShortcuts.length > 0 && (
+          <div className="px-2.5 pb-1.5 shrink-0 md:px-3 md:pb-2 [@media(max-height:640px)]:px-2 [@media(max-height:640px)]:pb-1">
+            <div className="flex gap-1.5 md:gap-2">
+              {periodShortcuts.map(period => {
+                const isNow = activePeriod?.key === period.key;
+                const isSelected = selectedCategory === period.category;
+                return (
+                  <button
+                    key={period.key}
+                    type="button"
+                    onClick={() => { setSelectedCategory(period.category); setSearchTerm(''); }}
+                    className={`flex-1 flex items-center justify-center gap-1.5 min-h-[44px] rounded-lg border-2 text-xs md:text-sm font-black transition-all ${
+                      isSelected
+                        ? 'border-[#EA1D2C] bg-[#EA1D2C] text-white shadow-md shadow-[#EA1D2C]/20'
+                        : isNow
+                          ? 'border-[#EA1D2C]/50 bg-[#FFF1F2] text-[#9C050B] dark:text-[#ff9aa1] animate-pulse'
+                          : 'border-fp-border bg-fp-secondary text-fptext-muted hover:border-zinc-400 hover:text-fptext-primary'
+                    }`}
+                    title={isNow ? `${period.label} — período atual` : period.label}
+                  >
+                    <span>{period.emoji}</span>
+                    <span>{period.label}</span>
+                    {isNow && !isSelected && <span className="w-1.5 h-1.5 rounded-full bg-[#EA1D2C]" />}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
