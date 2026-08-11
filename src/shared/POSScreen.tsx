@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspens
 import {
   ShoppingCart, Plus, Minus, Trash2, CheckCircle2, ShoppingBag,
   X, Search, Printer, Barcode, ScanLine, ChefHat, UserPlus,
+  Banknote, QrCode, CreditCard, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Product, OrderItem, PaymentMethod } from '../types';
@@ -31,6 +32,24 @@ const PosClienteModal = lazy(() => import('./PosClienteModal'));
 
 // ── Constantes de estilo ──────────────────────────────────────────────────────
 const PAY_METHODS: PaymentMethod[] = ['Dinheiro', 'PIX', 'Débito', 'Crédito'];
+
+// Períodos do dia usados na barra de atalho fixa do balcão (café da manhã / almoço / jantar).
+// `match` identifica a categoria "prato do período" (ex: produto "JANTAR - R$12,00" na categoria "Jantar").
+// `priority` lista categorias que devem subir pro topo da faixa quando esse período está ativo
+// (ex: de noite, o restaurante vende mais bebida/petisco junto do jantar).
+const MEAL_PERIODS: Array<{ key: string; label: string; emoji: string; startHour: number; endHour: number; match: string[]; priority: string[] }> = [
+  { key: 'cafe',   label: 'Café da Manhã', emoji: '☕', startHour: 5,    endHour: 10.5, match: ['café da manhã', 'cafe da manha'], priority: [] },
+  { key: 'almoco', label: 'Almoço',        emoji: '🍽️', startHour: 10.5, endHour: 16,   match: ['almoço', 'almoco'],                priority: [] },
+  { key: 'jantar', label: 'Jantar',        emoji: '🌙', startHour: 17.5, endHour: 24,   match: ['jantar'],                          priority: ['cerveja', 'petisco', 'refrigerante', 'bebida', 'suco', 'drink', 'caldinho'] },
+];
+
+// Ícone + cor própria por método — ajuda a reconhecer de longe, sem precisar ler o texto.
+const PAY_METHOD_STYLE: Record<PaymentMethod, { icon: any; selected: string; text: string }> = {
+  'Dinheiro': { icon: Banknote,    selected: 'border-emerald-500/50 bg-emerald-50 dark:bg-emerald-500/10',  text: 'text-emerald-700 dark:text-emerald-400' },
+  'PIX':      { icon: QrCode,      selected: 'border-sky-500/50 bg-sky-50 dark:bg-sky-500/10',              text: 'text-sky-700 dark:text-sky-400' },
+  'Débito':   { icon: CreditCard,  selected: 'border-violet-500/50 bg-violet-50 dark:bg-violet-500/10',     text: 'text-violet-700 dark:text-violet-400' },
+  'Crédito':  { icon: CreditCard,  selected: 'border-orange-500/50 bg-orange-50 dark:bg-orange-500/10',     text: 'text-orange-700 dark:text-orange-400' },
+};
 
 const PAY_ICON: Record<string, string> = {
   Dinheiro: '💵',
@@ -303,6 +322,24 @@ export default function POSScreen({
   const [barcodeToast, setBarcodeToast]         = useState<string | null>(null);
   const searchRef    = useRef<HTMLInputElement>(null);
   const barcodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const categoryScrollRef = useRef<HTMLDivElement>(null);
+  const [categoryScroll, setCategoryScroll] = useState({ canLeft: false, canRight: false });
+
+  const updateCategoryScroll = useCallback(() => {
+    const el = categoryScrollRef.current;
+    if (!el) return;
+    setCategoryScroll({
+      canLeft: el.scrollLeft > 4,
+      canRight: el.scrollLeft + el.clientWidth < el.scrollWidth - 4,
+    });
+  }, []);
+
+  const scrollCategories = useCallback((dir: -1 | 1) => {
+    const el = categoryScrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * el.clientWidth * 0.7, behavior: 'smooth' });
+  }, []);
+
   // ─── Derivados ────────────────────────────────────────────────────────────
   const total     = useMemo(() => cart.reduce((a, i) => a + i.price_at_time * i.quantity, 0), [cart]);
   const totalPaid = useMemo(() => payments.reduce((a, p) => a + p.amount_paid, 0), [payments]);
@@ -337,9 +374,36 @@ export default function POSScreen({
     );
   }, [products, debouncedSearch]);
 
-  const categories = useMemo(() =>
+  const categoriesRaw = useMemo(() =>
     [...new Set(filteredProducts.map(p => p.category))].sort(),
   [filteredProducts]);
+
+  // Descobre a hora atual e qual período (café/almoço/jantar) está ativo agora.
+  const activePeriod = useMemo(() => {
+    const now = new Date();
+    const h = now.getHours() + now.getMinutes() / 60;
+    return MEAL_PERIODS.find(p => h >= p.startHour && h < p.endHour) ?? null;
+  }, []);
+
+  // Para cada período, acha a categoria real do cardápio que corresponde a ele
+  // (ex: período "jantar" → categoria "Jantar" cadastrada pelo restaurante).
+  const periodShortcuts = useMemo(() => {
+    return MEAL_PERIODS
+      .map(period => {
+        const cat = categoriesRaw.find(c => period.match.some(m => c.toLowerCase().includes(m)));
+        return cat ? { ...period, category: cat } : null;
+      })
+      .filter((p): p is (typeof MEAL_PERIODS[number] & { category: string }) => p !== null);
+  }, [categoriesRaw]);
+
+  // Reordena a faixa de categorias: se o período ativo tem categorias prioritárias
+  // (ex: de noite → cerveja/petisco sobem antes do resto), elas aparecem primeiro.
+  const categories = useMemo(() => {
+    if (!activePeriod || activePeriod.priority.length === 0) return categoriesRaw;
+    const priorityMatches = categoriesRaw.filter(c => activePeriod.priority.some(p => c.toLowerCase().includes(p)));
+    const rest = categoriesRaw.filter(c => !priorityMatches.includes(c));
+    return [...priorityMatches, ...rest];
+  }, [categoriesRaw, activePeriod]);
 
   const displayProducts = useMemo(() =>
     selectedCategory === 'Todas'
@@ -565,6 +629,14 @@ export default function POSScreen({
   }, []);
 
   useEffect(() => { searchRef.current?.focus(); }, []);
+
+  // Recalcula as setas de navegação da faixa de categorias sempre que a lista muda
+  // (ex: trocou de período, filtrou por busca) ou a tela é redimensionada.
+  useEffect(() => {
+    updateCategoryScroll();
+    window.addEventListener('resize', updateCategoryScroll);
+    return () => window.removeEventListener('resize', updateCategoryScroll);
+  }, [categories, updateCategoryScroll]);
 
   useEffect(() => {
     if (cart.length === 0) {
@@ -864,7 +936,7 @@ export default function POSScreen({
 
         {/* Pagamentos */}
         <div className="border-t border-fp-border bg-white px-2.5 py-2.5 space-y-2.5 md:px-3 md:py-3 md:space-y-3 xl:px-4 xl:py-3 [@media(max-height:700px)]:px-2 [@media(max-height:700px)]:py-2 [@media(max-height:700px)]:space-y-2">
-          <p className="text-[10px] font-bold text-fptext-muted uppercase tracking-wider">Pagamentos Adicionados</p>
+          <p className="text-xs font-bold text-fptext-muted uppercase tracking-wider">Pagamentos Adicionados</p>
           {payments.length > 0 && (
             <div className="space-y-1.5">
               {payments.map((p, i) => (
@@ -879,30 +951,36 @@ export default function POSScreen({
             </div>
           )}
           <div className="grid grid-cols-4 gap-1.5 lg:gap-2">
-            {PAY_METHODS.map(m => (
-              <button key={m} type="button" onClick={() => {
-                  setCurrentPaymentMethod(m);
-                  // PIX/Débito/Crédito quase sempre fecham o valor exato restante — evita
-                  // ter que digitar o valor de novo no balcão. Dinheiro fica de fora porque
-                  // o caixa costuma receber uma nota arredondada e calcular troco.
-                  if (m !== 'Dinheiro' && remaining > 0) setCurrentAmount(remaining);
-                }}
-                className={`py-2 lg:py-1.5 rounded-lg text-[10px] font-bold border transition-all min-h-[40px] lg:min-h-0 ${
-                  currentPaymentMethod === m
-                    ? 'border-[#EA1D2C]/35 bg-[#FFF1F2] text-[#9C050B] dark:text-[#ff9aa1]'
-                    : 'bg-fp-secondary border-fp-border text-fptext-muted hover:border-zinc-400 hover:text-fptext-primary dark:hover:border-zinc-600 dark:hover:text-zinc-300'
-                }`}>
-                <span>{m}</span>
-                {getTaxa(m) > 0 && (
-                  <span className={`block text-[9px] font-bold mt-0.5 ${currentPaymentMethod === m ? 'text-[#9C050B] dark:text-[#ff9aa1]' : 'text-fptext-muted'}`}>
-                    +{getTaxa(m)}%
-                  </span>
-                )}
-              </button>
-            ))}
+            {PAY_METHODS.map(m => {
+              const style = PAY_METHOD_STYLE[m];
+              const Icon = style.icon;
+              const isSelected = currentPaymentMethod === m;
+              return (
+                <button key={m} type="button" onClick={() => {
+                    setCurrentPaymentMethod(m);
+                    // PIX/Débito/Crédito quase sempre fecham o valor exato restante — evita
+                    // ter que digitar o valor de novo no balcão. Dinheiro fica de fora porque
+                    // o caixa costuma receber uma nota arredondada e calcular troco.
+                    if (m !== 'Dinheiro' && remaining > 0) setCurrentAmount(remaining);
+                  }}
+                  className={`flex flex-col items-center gap-0.5 py-2.5 lg:py-2 rounded-lg text-[11px] font-bold border-2 transition-all min-h-[52px] lg:min-h-[48px] ${
+                    isSelected
+                      ? `${style.selected} ${style.text}`
+                      : 'bg-fp-secondary border-fp-border text-fptext-muted hover:border-zinc-400 hover:text-fptext-primary dark:hover:border-zinc-600 dark:hover:text-zinc-300'
+                  }`}>
+                  <Icon size={16} strokeWidth={2.25} />
+                  <span>{m}</span>
+                  {getTaxa(m) > 0 && (
+                    <span className={`block text-[9px] font-bold ${isSelected ? style.text : 'text-fptext-muted'}`}>
+                      +{getTaxa(m)}%
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
           <div>
-            <p className="text-[11px] font-bold text-fptext-secondary uppercase tracking-wider mb-1 truncate">
+            <p className="text-xs font-bold text-fptext-secondary uppercase tracking-wider mb-1 truncate">
               Valor a receber {currentPaymentMethod !== 'Dinheiro' ? `(${currentPaymentMethod})` : ''}
             </p>
             <div className="flex gap-2">
@@ -913,33 +991,33 @@ export default function POSScreen({
                 className="min-w-0 flex-1 min-h-[48px] rounded-lg border-2 border-fp-border bg-fp-input px-3 py-2 text-lg font-bold text-fptext-primary placeholder:text-fptext-muted placeholder:font-normal transition-all focus:border-[#EA1D2C]/60 focus:outline-none"
               />
               <button type="button" onClick={addPayment} disabled={currentAmount <= 0}
-                className="shrink-0 min-h-[48px] rounded-lg border border-[#EA1D2C]/25 bg-[#FFF1F2] px-3 md:px-4 py-2 text-sm font-bold text-[#9C050B] transition-all hover:bg-[#FFE5E8] disabled:opacity-30">
+                className="shrink-0 min-h-[48px] rounded-lg bg-[#EA1D2C] px-3 md:px-4 py-2 text-sm font-bold text-white shadow-md shadow-[#EA1D2C]/20 transition-all hover:bg-[#9C050B] disabled:opacity-30 disabled:shadow-none">
                 Adicionar
               </button>
             </div>
           </div>
           {remaining > 0 && (
             <button type="button" onClick={() => setCurrentAmount(remaining)}
-              className="w-full py-2.5 md:py-2 text-xs font-bold text-[#9C050B] bg-[#FFF1F2] hover:bg-[#FFE5E8] border border-[#EA1D2C]/25 rounded-lg transition-all dark:text-[#ff9aa1]">
+              className="w-full py-2.5 md:py-2 text-xs font-bold text-[#9C050B] bg-[#FFF1F2] hover:bg-[#FFE5E8] border-2 border-[#EA1D2C]/40 rounded-lg transition-all dark:text-[#ff9aa1]">
               Preencher valor exato — R$ {remaining.toFixed(2)}
             </button>
           )}
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <p className="text-[9px] font-bold text-fptext-muted uppercase tracking-wider mb-0.5">Restante</p>
-              <div className={`min-h-9 flex items-center justify-center font-bold text-xs rounded-lg border ${remaining > 0 ? 'bg-red-500/10 text-red-600 border-red-500/30 dark:text-red-400' : 'bg-fp-secondary text-fptext-muted border-fp-border'}`}>
+              <p className="text-[11px] font-bold text-fptext-muted uppercase tracking-wider mb-0.5">Restante</p>
+              <div className={`min-h-9 flex items-center justify-center font-bold text-sm rounded-lg border ${remaining > 0 ? 'bg-red-500/10 text-red-600 border-red-500/30 dark:text-red-400' : 'bg-fp-secondary text-fptext-muted border-fp-border'}`}>
                 R$ {Math.max(0, remaining).toFixed(2)}
               </div>
             </div>
             <div>
-              <p className="text-[9px] font-bold text-fptext-muted uppercase tracking-wider mb-0.5">Troco</p>
-              <div className={`min-h-9 flex items-center justify-center font-bold text-xs rounded-lg border ${change > 0 ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-400' : 'bg-fp-secondary text-fptext-muted border-fp-border'}`}>
+              <p className="text-[11px] font-bold text-fptext-muted uppercase tracking-wider mb-0.5">Troco</p>
+              <div className={`min-h-9 flex items-center justify-center font-bold text-sm rounded-lg border ${change > 0 ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-400' : 'bg-fp-secondary text-fptext-muted border-fp-border'}`}>
                 R$ {change.toFixed(2)}
               </div>
             </div>
           </div>
           <div>
-            <p className="text-[9px] font-bold text-fptext-muted uppercase tracking-wider mb-0.5">Observações</p>
+            <p className="text-[11px] font-bold text-fptext-muted uppercase tracking-wider mb-0.5">Observações</p>
             <input
               placeholder="Ex: Sem feijão, mais carne..."
               value={observation}
@@ -1053,22 +1131,83 @@ export default function POSScreen({
           </div>
         )}
 
+        {/* Barra fixa de período (café da manhã / almoço / jantar) — só aparece se o cardápio tiver essas categorias */}
+        {periodShortcuts.length > 0 && (
+          <div className="px-2.5 pb-1.5 shrink-0 md:px-3 md:pb-2 [@media(max-height:640px)]:px-2 [@media(max-height:640px)]:pb-1">
+            <div className="flex gap-1.5 md:gap-2">
+              {periodShortcuts.map(period => {
+                const isNow = activePeriod?.key === period.key;
+                const isSelected = selectedCategory === period.category;
+                return (
+                  <button
+                    key={period.key}
+                    type="button"
+                    onClick={() => { setSelectedCategory(period.category); setSearchTerm(''); }}
+                    className={`flex-1 flex items-center justify-center gap-1.5 min-h-[44px] rounded-lg border-2 text-xs md:text-sm font-black transition-all ${
+                      isSelected
+                        ? 'border-[#EA1D2C] bg-[#EA1D2C] text-white shadow-md shadow-[#EA1D2C]/20'
+                        : isNow
+                          ? 'border-[#EA1D2C]/50 bg-[#FFF1F2] text-[#9C050B] dark:text-[#ff9aa1] animate-pulse'
+                          : 'border-fp-border bg-fp-secondary text-fptext-muted hover:border-zinc-400 hover:text-fptext-primary'
+                    }`}
+                    title={isNow ? `${period.label} — período atual` : period.label}
+                  >
+                    <span>{period.emoji}</span>
+                    <span>{period.label}</span>
+                    {isNow && !isSelected && <span className="w-1.5 h-1.5 rounded-full bg-[#EA1D2C]" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Abas de categoria */}
         <div className="px-2.5 pb-1.5 shrink-0 md:px-3 md:pb-2 [@media(max-height:640px)]:px-2 [@media(max-height:640px)]:pb-1">
-          <div className="flex gap-1.5 overflow-x-auto pb-0.5 md:gap-2 md:pb-1" style={{ scrollbarWidth: 'none' }}>
-            {['Todas', ...categories].map(cat => (
+          <div className="relative flex items-center gap-1">
+            {categoryScroll.canLeft && (
               <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-2 min-h-[40px] text-xs rounded-md border transition-all duration-200 shrink-0 max-md:min-h-[44px] max-md:px-4 max-md:py-2.5 max-md:text-sm max-md:rounded-lg md:min-h-0 md:px-3 md:py-1.5 md:text-sm md:rounded-lg flex items-center font-bold whitespace-nowrap [@media(max-height:640px)]:min-h-0 [@media(max-height:640px)]:px-2.5 [@media(max-height:640px)]:py-1 [@media(max-height:640px)]:text-xs ${
-                  selectedCategory === cat
-                    ? 'border-[#EA1D2C] bg-[#EA1D2C] text-white shadow-md shadow-[#EA1D2C]/18 ring-2 ring-[#EA1D2C]/14'
-                    : 'bg-fp-secondary/90 border-fp-border text-fptext-muted hover:border-zinc-400 hover:text-fptext-primary hover:bg-fp-hover dark:border-zinc-600 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-200 dark:hover:bg-zinc-800'
-                }`}
+                type="button"
+                onClick={() => scrollCategories(-1)}
+                aria-label="Categorias anteriores"
+                className="shrink-0 z-10 flex items-center justify-center w-7 h-7 rounded-full border border-fp-border bg-white shadow-md text-fptext-primary hover:bg-fp-hover dark:bg-zinc-800"
               >
-                {cat}
+                <ChevronLeft size={16} />
               </button>
-            ))}
+            )}
+            <div
+              ref={categoryScrollRef}
+              onScroll={updateCategoryScroll}
+              className="flex gap-1.5 overflow-x-auto pb-0.5 md:gap-2 md:pb-1 scroll-smooth"
+              style={{ scrollbarWidth: 'none' }}
+            >
+              {['Todas', ...categories].map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-3 py-2 min-h-[40px] text-xs rounded-md border transition-all duration-200 shrink-0 max-md:min-h-[44px] max-md:px-4 max-md:py-2.5 max-md:text-sm max-md:rounded-lg md:min-h-0 md:px-3 md:py-1.5 md:text-sm md:rounded-lg flex items-center font-bold whitespace-nowrap [@media(max-height:640px)]:min-h-0 [@media(max-height:640px)]:px-2.5 [@media(max-height:640px)]:py-1 [@media(max-height:640px)]:text-xs ${
+                    selectedCategory === cat
+                      ? 'border-[#EA1D2C] bg-[#EA1D2C] text-white shadow-md shadow-[#EA1D2C]/18 ring-2 ring-[#EA1D2C]/14'
+                      : 'bg-fp-secondary/90 border-fp-border text-fptext-muted hover:border-zinc-400 hover:text-fptext-primary hover:bg-fp-hover dark:border-zinc-600 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-200 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+            {categoryScroll.canRight && (
+              <>
+                <div className="pointer-events-none absolute right-7 top-0 bottom-0 w-8 bg-gradient-to-r from-transparent to-fp-app md:to-white" />
+                <button
+                  type="button"
+                  onClick={() => scrollCategories(1)}
+                  aria-label="Mais categorias"
+                  className="shrink-0 z-10 flex items-center justify-center w-7 h-7 rounded-full border border-fp-border bg-white shadow-md text-fptext-primary hover:bg-fp-hover dark:bg-zinc-800"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </>
+            )}
           </div>
         </div>
 
