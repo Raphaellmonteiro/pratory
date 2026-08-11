@@ -902,18 +902,18 @@ export default function POSScreen({
             ))}
           </div>
           <div>
-            <p className="text-[11px] font-bold text-fptext-secondary uppercase tracking-wider mb-1">
+            <p className="text-[11px] font-bold text-fptext-secondary uppercase tracking-wider mb-1 truncate">
               Valor a receber {currentPaymentMethod !== 'Dinheiro' ? `(${currentPaymentMethod})` : ''}
             </p>
             <div className="flex gap-2">
               <input
-                type="number" placeholder="R$ 0,00"
+                type="number" placeholder="0,00"
                 value={currentAmount || ''}
                 onChange={e => setCurrentAmount(parseFloat(e.target.value) || 0)}
-                className="flex-1 min-h-[48px] rounded-lg border-2 border-fp-border bg-fp-input px-3 py-2 text-lg font-bold text-fptext-primary placeholder:text-fptext-muted placeholder:font-normal transition-all focus:border-[#EA1D2C]/60 focus:outline-none"
+                className="min-w-0 flex-1 min-h-[48px] rounded-lg border-2 border-fp-border bg-fp-input px-3 py-2 text-lg font-bold text-fptext-primary placeholder:text-fptext-muted placeholder:font-normal transition-all focus:border-[#EA1D2C]/60 focus:outline-none"
               />
               <button type="button" onClick={addPayment} disabled={currentAmount <= 0}
-                className="min-h-[48px] rounded-lg border border-[#EA1D2C]/25 bg-[#FFF1F2] px-4 py-2 text-sm font-bold text-[#9C050B] transition-all hover:bg-[#FFE5E8] disabled:opacity-30">
+                className="shrink-0 min-h-[48px] rounded-lg border border-[#EA1D2C]/25 bg-[#FFF1F2] px-3 md:px-4 py-2 text-sm font-bold text-[#9C050B] transition-all hover:bg-[#FFE5E8] disabled:opacity-30">
                 Adicionar
               </button>
             </div>
@@ -1112,7 +1112,7 @@ export default function POSScreen({
       {/* ═══════════════════════════════════════════════════════════════
           PAINEL DIREITO — Pedido + Pagamento (tablet/desktop)
       ═══════════════════════════════════════════════════════════════ */}
-      <div className="hidden h-full min-h-0 w-full shrink-0 overflow-hidden border-l border-fp-border bg-white shadow-sm shadow-zinc-950/[0.06] print:shadow-none [print-color-adjust:exact] [-webkit-print-color-adjust:exact] dark:shadow-[0_0_40px_rgba(0,0,0,0.45)] md:flex md:w-[min(260px,30vw)] md:flex-col md:min-w-[240px] lg:w-[min(272px,25vw)] xl:w-[min(300px,22vw)] 2xl:w-[min(336px,16vw)] min-[2200px]:w-[min(380px,14vw)]">
+      <div className="hidden h-full min-h-0 w-full shrink-0 overflow-hidden border-l border-fp-border bg-white shadow-sm shadow-zinc-950/[0.06] print:shadow-none [print-color-adjust:exact] [-webkit-print-color-adjust:exact] dark:shadow-[0_0_40px_rgba(0,0,0,0.45)] md:flex md:w-[min(300px,32vw)] md:flex-col md:min-w-[280px] lg:w-[min(320px,27vw)] xl:w-[min(340px,24vw)] 2xl:w-[min(376px,18vw)] min-[2200px]:w-[min(420px,15vw)]">
         {renderCartColumn('desktop')}
       </div>
 
