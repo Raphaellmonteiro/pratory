@@ -1783,6 +1783,7 @@ export default function ProductsScreen({
             produtoId={opcoesProdutoId}
             produtoNome={products.find(p=>p.id===opcoesProdutoId)?.name||''}
             token={token}
+            allProdutos={products}
             onClose={()=>setOpcoesProdutoId(null)}
           />
         )}
@@ -1815,8 +1816,10 @@ interface ItemOpcaoAdmin {
   id: number; nome: string; preco_adicional: number; ordem: number; ativo: number;
 }
 
-function ModalOpcoesAdmin({ produtoId, produtoNome, token, onClose }: {
-  produtoId: number; produtoNome: string; token: string; onClose: ()=>void;
+function ModalOpcoesAdmin({ produtoId, produtoNome, token, allProdutos, onClose }: {
+  produtoId: number; produtoNome: string; token: string;
+  allProdutos: Array<{ id: number; name: string; category?: string }>;
+  onClose: ()=>void;
 }) {
   const [grupos, setGrupos] = useState<GrupoOpcaoAdmin[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1825,8 +1828,53 @@ function ModalOpcoesAdmin({ produtoId, produtoNome, token, onClose }: {
   const [editItem, setEditItem] = useState<{id:number;nome:string;preco:string}|null>(null);
   const [editGrupo, setEditGrupo] = useState<{id:number;nome:string;tipo:string;min_selecoes:number;max_selecoes:number;obrigatorio:boolean;modo_preco:string}|null>(null);
   const [saving, setSaving] = useState(false);
+  // Aplicar grupo de opções a outros produtos (evita recriar manualmente item a item)
+  const [aplicarGrupoId, setAplicarGrupoId] = useState<number|null>(null);
+  const [aplicarBusca, setAplicarBusca] = useState('');
+  const [aplicarSelecionados, setAplicarSelecionados] = useState<Set<number>>(new Set());
+  const [aplicarSaving, setAplicarSaving] = useState(false);
+  const [aplicarResultado, setAplicarResultado] = useState<{aplicados:number; jaExistiam:number}|null>(null);
   const hdrs = { 'Content-Type':'application/json', Authorization:`Bearer ${token}` };
   const fmtR = (v: number) => v > 0 ? `+R$ ${v.toFixed(2).replace('.',',')}` : 'Incluso';
+
+  const produtosParaAplicar = useMemo(() => {
+    const termo = aplicarBusca.trim().toLowerCase();
+    return allProdutos
+      .filter(p => p.id !== produtoId)
+      .filter(p => !termo || p.name.toLowerCase().includes(termo));
+  }, [allProdutos, produtoId, aplicarBusca]);
+
+  const abrirAplicar = (grupoId: number) => {
+    setAplicarGrupoId(grupoId);
+    setAplicarBusca('');
+    setAplicarSelecionados(new Set());
+    setAplicarResultado(null);
+  };
+
+  const toggleAplicarProduto = (id: number) => {
+    setAplicarSelecionados(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const confirmarAplicar = async () => {
+    if (!aplicarGrupoId || aplicarSelecionados.size === 0) return;
+    setAplicarSaving(true);
+    try {
+      const r = await fetch(`/api/products/opcoes/grupos/${aplicarGrupoId}/aplicar`, {
+        method: 'POST', headers: hdrs,
+        body: JSON.stringify({ produto_ids: Array.from(aplicarSelecionados) })
+      });
+      const data = await r.json();
+      if (r.ok) {
+        setAplicarResultado({ aplicados: data.aplicados?.length||0, jaExistiam: data.jaExistiam?.length||0 });
+      }
+    } finally {
+      setAplicarSaving(false);
+    }
+  };
 
   const { visibleItems: gruposVisiveis, hasMore: hasMoreGrupos, loadMore: loadMoreGrupos, totalCount: totalGrupos } = usePaginatedList(grupos, { pageSize: 10 });
 
@@ -2023,6 +2071,11 @@ function ModalOpcoesAdmin({ produtoId, produtoNome, token, onClose }: {
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <button
+                      onClick={()=>abrirAplicar(g.id)}
+                      title="Aplicar este grupo a outros produtos" className="p-1.5 hover:bg-emerald-50 text-zinc-300 hover:text-emerald-600 rounded-lg transition-all">
+                      <Copy size={14}/>
+                    </button>
+                    <button
                       onClick={()=>setEditGrupo({id:g.id,nome:g.nome,tipo:g.tipo,min_selecoes:g.min_selecoes,max_selecoes:g.max_selecoes,obrigatorio:!!g.obrigatorio,modo_preco:g.modo_preco||'adicional'})}
                       title="Editar grupo" className="p-1.5 hover:bg-zinc-200 text-zinc-400 hover:text-zinc-700 rounded-lg transition-all">
                       <Pencil size={14}/>
@@ -2139,6 +2192,74 @@ function ModalOpcoesAdmin({ produtoId, produtoNome, token, onClose }: {
           </button>
         </div>
       </motion.div>
+
+      {/* Aplicar grupo de opções a outros produtos */}
+      {aplicarGrupoId && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[130] flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <motion.div initial={{scale:0.93,opacity:0}} animate={{scale:1,opacity:1}} exit={{scale:0.93,opacity:0}}
+            className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[85dvh]">
+            <div className="flex shrink-0 items-center justify-between border-b border-zinc-100 px-5 py-4">
+              <div className="min-w-0 pr-2">
+                <h4 className="text-base font-black text-zinc-900">Aplicar a outros produtos</h4>
+                <p className="text-xs text-zinc-400 mt-0.5 truncate">{grupos.find(g=>g.id===aplicarGrupoId)?.nome}</p>
+              </div>
+              <button type="button" onClick={()=>setAplicarGrupoId(null)}
+                className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0 hover:bg-zinc-100 rounded-xl text-zinc-400">
+                <X size={18}/>
+              </button>
+            </div>
+
+            {aplicarResultado ? (
+              <div className="p-6 text-center space-y-2">
+                <CheckCircle2 size={36} className="mx-auto text-emerald-500"/>
+                <p className="font-bold text-zinc-800">
+                  Aplicado a {aplicarResultado.aplicados} produto{aplicarResultado.aplicados===1?'':'s'}.
+                </p>
+                {aplicarResultado.jaExistiam > 0 && (
+                  <p className="text-xs text-zinc-400">
+                    {aplicarResultado.jaExistiam} já tinha{aplicarResultado.jaExistiam===1?'':'m'} um grupo com esse nome e foram ignorados.
+                  </p>
+                )}
+                <button onClick={()=>setAplicarGrupoId(null)}
+                  className="mt-2 px-5 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl text-sm font-bold">
+                  Fechar
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="px-5 pt-3 pb-2 shrink-0 space-y-2">
+                  <input value={aplicarBusca} onChange={e=>setAplicarBusca(e.target.value)}
+                    placeholder="Buscar produto..." className={`${inp} w-full`}/>
+                  <button type="button"
+                    onClick={()=>setAplicarSelecionados(new Set(produtosParaAplicar.map(p=>p.id)))}
+                    className="text-xs font-bold text-emerald-600 hover:underline">
+                    Selecionar todos ({produtosParaAplicar.length})
+                  </button>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto px-5 py-1 space-y-0.5">
+                  {produtosParaAplicar.length === 0 ? (
+                    <p className="text-center text-sm text-zinc-400 py-6">Nenhum produto encontrado</p>
+                  ) : produtosParaAplicar.map(p => (
+                    <label key={p.id} className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-zinc-50 cursor-pointer">
+                      <input type="checkbox" checked={aplicarSelecionados.has(p.id)} onChange={()=>toggleAplicarProduto(p.id)}
+                        className="w-4 h-4 accent-emerald-500 shrink-0"/>
+                      <span className="text-sm font-medium text-zinc-700 truncate">{p.name}</span>
+                      {p.category && <span className="ml-auto text-[10px] text-zinc-400 shrink-0">{p.category}</span>}
+                    </label>
+                  ))}
+                </div>
+                <div className="px-5 py-3.5 border-t border-zinc-100 flex items-center gap-3 shrink-0">
+                  <span className="text-xs text-zinc-400">{aplicarSelecionados.size} selecionado(s)</span>
+                  <button type="button" onClick={confirmarAplicar} disabled={aplicarSelecionados.size===0||aplicarSaving}
+                    className="ml-auto px-5 py-2.5 min-h-[44px] bg-emerald-500 hover:bg-emerald-600 disabled:bg-zinc-200 text-white rounded-xl text-sm font-bold transition-all">
+                    {aplicarSaving ? 'Aplicando...' : 'Aplicar'}
+                  </button>
+                </div>
+              </>
+            )}
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

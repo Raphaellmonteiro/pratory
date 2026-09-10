@@ -1455,5 +1455,107 @@ function normalizeProductPromotionInput(
     } catch (e: unknown) { sendInternalError(res, 'routes/products', e); }
   });
 
+  /** Copia um grupo de opções (e seus itens) para outros produtos do tenant.
+   *  Produtos que já possuem um grupo com o mesmo nome são ignorados (evita duplicidade em reaplicações). */
+  router.post('/opcoes/grupos/:grupoId/aplicar', async (req: Request, res) => {
+    try {
+      const grupoId = Number(req.params.grupoId);
+      if (!Number.isInteger(grupoId) || grupoId <= 0) {
+        return res.status(400).json({ error: 'Grupo inv\u00E1lido' });
+      }
+      const produtoIdsRaw = Array.isArray(req.body?.produto_ids) ? req.body.produto_ids : [];
+      const produtoIdsFiltrados: number[] = produtoIdsRaw
+        .map((v: unknown) => Number(v))
+        .filter((v: number) => Number.isInteger(v) && v > 0);
+      const produtoIds: number[] = Array.from(new Set(produtoIdsFiltrados));
+      if (!produtoIds.length) {
+        return res.status(400).json({ error: 'Selecione ao menos um produto' });
+      }
+
+      const resultado = await withTx(async (client) => {
+        const grupo = await txQ1<Record<string, unknown>>(
+          client,
+          'SELECT * FROM produto_grupos_opcao WHERE id=? AND tenant_id=?',
+          [grupoId, req.tenantId]
+        );
+        if (!grupo) return null;
+
+        const itensOrigem = await txQAll<Record<string, unknown>>(
+          client,
+          'SELECT * FROM produto_opcao_itens WHERE grupo_id=? AND tenant_id=? ORDER BY ordem ASC, id ASC',
+          [grupoId, req.tenantId]
+        );
+
+        const aplicados: number[] = [];
+        const jaExistiam: number[] = [];
+
+        for (const produtoId of produtoIds) {
+          if (produtoId === Number(grupo.produto_id)) continue;
+
+          const produtoValido = await txQ1<{ id: number }>(
+            client,
+            'SELECT id FROM produtos WHERE id=? AND tenant_id=?',
+            [produtoId, req.tenantId]
+          );
+          if (!produtoValido) continue;
+
+          const jaTem = await txQ1<{ id: number }>(
+            client,
+            'SELECT id FROM produto_grupos_opcao WHERE produto_id=? AND tenant_id=? AND LOWER(nome)=LOWER(?)',
+            [produtoId, req.tenantId, String(grupo.nome)]
+          );
+          if (jaTem) { jaExistiam.push(produtoId); continue; }
+
+          const maxOrdem = await txQ1<{ next: number }>(
+            client,
+            'SELECT COALESCE(MAX(ordem),0)+1 AS next FROM produto_grupos_opcao WHERE produto_id=? AND tenant_id=?',
+            [produtoId, req.tenantId]
+          );
+
+          const novoGrupoId = await txInsert(
+            client,
+            `INSERT INTO produto_grupos_opcao (produto_id,tenant_id,nome,tipo,min_selecoes,max_selecoes,obrigatorio,ordem,ativo,modo_preco)
+             VALUES (?,?,?,?,?,?,?,?,?,?)`,
+            [
+              produtoId,
+              req.tenantId,
+              grupo.nome,
+              (grupo.tipo as string) || 'radio',
+              Number(grupo.min_selecoes) || 0,
+              Number(grupo.max_selecoes) || 1,
+              grupo.obrigatorio === true || grupo.obrigatorio === 1 || String(grupo.obrigatorio) === '1' ? 1 : 0,
+              maxOrdem?.next ?? 0,
+              grupo.ativo === false || grupo.ativo === 0 || String(grupo.ativo) === '0' ? 0 : 1,
+              (grupo.modo_preco as string) || 'adicional',
+            ]
+          );
+
+          for (const it of itensOrigem) {
+            await txRun(
+              client,
+              `INSERT INTO produto_opcao_itens (grupo_id,tenant_id,nome,preco_adicional,ordem,ativo)
+               VALUES (?,?,?,?,?,?)`,
+              [
+                novoGrupoId,
+                req.tenantId,
+                it.nome,
+                Number(it.preco_adicional) || 0,
+                Number(it.ordem) || 0,
+                it.ativo === false || it.ativo === 0 || String(it.ativo) === '0' ? 0 : 1,
+              ]
+            );
+          }
+
+          aplicados.push(produtoId);
+        }
+
+        return { aplicados, jaExistiam };
+      });
+
+      if (!resultado) return res.status(404).json({ error: 'Grupo n\u00E3o encontrado' });
+      res.json({ success: true, aplicados: resultado.aplicados, jaExistiam: resultado.jaExistiam });
+    } catch (e: unknown) { sendInternalError(res, 'routes/products', e); }
+  });
+
   return router;
 }
