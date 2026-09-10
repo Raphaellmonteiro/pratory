@@ -1468,6 +1468,7 @@ function normalizeProductPromotionInput(
         .map((v: unknown) => Number(v))
         .filter((v: number) => Number.isInteger(v) && v > 0);
       const produtoIds: number[] = Array.from(new Set(produtoIdsFiltrados));
+      const sobrescrever = req.body?.sobrescrever === true;
       if (!produtoIds.length) {
         return res.status(400).json({ error: 'Selecione ao menos um produto' });
       }
@@ -1488,6 +1489,7 @@ function normalizeProductPromotionInput(
 
         const aplicados: number[] = [];
         const jaExistiam: number[] = [];
+        const substituidos: number[] = [];
 
         for (const produtoId of produtoIds) {
           if (produtoId === Number(grupo.produto_id)) continue;
@@ -1499,12 +1501,26 @@ function normalizeProductPromotionInput(
           );
           if (!produtoValido) continue;
 
-          const jaTem = await txQ1<{ id: number }>(
+          const grupoExistente = await txQ1<{ id: number }>(
             client,
             'SELECT id FROM produto_grupos_opcao WHERE produto_id=? AND tenant_id=? AND LOWER(nome)=LOWER(?)',
             [produtoId, req.tenantId, String(grupo.nome)]
           );
-          if (jaTem) { jaExistiam.push(produtoId); continue; }
+          if (grupoExistente) {
+            if (!sobrescrever) { jaExistiam.push(produtoId); continue; }
+            // Remove o grupo antigo (e seus itens) antes de recriar com os dados atualizados.
+            await txRun(
+              client,
+              'DELETE FROM produto_opcao_itens WHERE grupo_id=? AND tenant_id=?',
+              [grupoExistente.id, req.tenantId]
+            );
+            await txRun(
+              client,
+              'DELETE FROM produto_grupos_opcao WHERE id=? AND tenant_id=?',
+              [grupoExistente.id, req.tenantId]
+            );
+            substituidos.push(produtoId);
+          }
 
           const maxOrdem = await txQ1<{ next: number }>(
             client,
@@ -1549,11 +1565,11 @@ function normalizeProductPromotionInput(
           aplicados.push(produtoId);
         }
 
-        return { aplicados, jaExistiam };
+        return { aplicados, jaExistiam, substituidos };
       });
 
       if (!resultado) return res.status(404).json({ error: 'Grupo n\u00E3o encontrado' });
-      res.json({ success: true, aplicados: resultado.aplicados, jaExistiam: resultado.jaExistiam });
+      res.json({ success: true, aplicados: resultado.aplicados, jaExistiam: resultado.jaExistiam, substituidos: resultado.substituidos });
     } catch (e: unknown) { sendInternalError(res, 'routes/products', e); }
   });
 

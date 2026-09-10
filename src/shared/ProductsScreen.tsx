@@ -1124,7 +1124,7 @@ export default function ProductsScreen({
                     <button type="button" onClick={() => handleToggleDestaque(p)} className={`p-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg transition-all ${p.destaque ? 'text-amber-500' : 'text-zinc-300 hover:text-amber-500'}`}><Star size={14} className={p.destaque ? 'fill-amber-500' : ''}/></button>
                     <button type="button" onClick={() => handleToggleAtivo(p)} className="p-2 min-h-[40px] min-w-[40px] flex items-center justify-center hover:bg-zinc-100 text-zinc-400 rounded-lg transition-all">{p.active ? <Eye size={14}/> : <EyeOff size={14}/>}</button>
                     <button type="button" onClick={() => handleDuplicate(p.id)} className="p-2 min-h-[40px] min-w-[40px] flex items-center justify-center hover:bg-zinc-100 text-zinc-400 rounded-lg transition-all"><Copy size={14}/></button>
-                    {p.id && <button type="button" onClick={() => { setEditing({ ...p, production_type: resolveProductionType(p), requires_preparation: resolveRequiresPreparation(p) ? 1 : 0 }); setPendingPhoto(null); setActiveTab('opcoes'); }} title="Opções / Adicionais" className="p-2 min-h-[40px] min-w-[40px] flex items-center justify-center hover:bg-emerald-50 text-zinc-300 hover:text-emerald-600 rounded-lg transition-all"><Settings2 size={14}/></button>}
+                    {p.id && <button type="button" onClick={() => setOpcoesProdutoId(p.id!)} title="Opções / Adicionais" className="p-2 min-h-[40px] min-w-[40px] flex items-center justify-center hover:bg-emerald-50 text-zinc-300 hover:text-emerald-600 rounded-lg transition-all"><Settings2 size={14}/></button>}
                     <button type="button" onClick={() => { setEditing({ ...p, production_type: resolveProductionType(p), requires_preparation: resolveRequiresPreparation(p) ? 1 : 0 }); setPendingPhoto(null); setActiveTab('basico'); }} className="p-2 min-h-[40px] min-w-[40px] flex items-center justify-center hover:bg-zinc-100 text-zinc-400 rounded-lg transition-all"><Pencil size={14}/></button>
                     <button type="button" onClick={() => handleDeleteClick(p.id)} className="p-2 min-h-[40px] min-w-[40px] flex items-center justify-center hover:bg-red-50 text-zinc-300 hover:text-red-500 rounded-lg transition-all"><Trash2 size={14}/></button>
                   </div>
@@ -1832,8 +1832,9 @@ function ModalOpcoesAdmin({ produtoId, produtoNome, token, allProdutos, onClose 
   const [aplicarGrupoId, setAplicarGrupoId] = useState<number|null>(null);
   const [aplicarBusca, setAplicarBusca] = useState('');
   const [aplicarSelecionados, setAplicarSelecionados] = useState<Set<number>>(new Set());
+  const [aplicarSobrescrever, setAplicarSobrescrever] = useState(false);
   const [aplicarSaving, setAplicarSaving] = useState(false);
-  const [aplicarResultado, setAplicarResultado] = useState<{aplicados:number; jaExistiam:number}|null>(null);
+  const [aplicarResultado, setAplicarResultado] = useState<{aplicados:number; jaExistiam:number; substituidos:number}|null>(null);
   const hdrs = { 'Content-Type':'application/json', Authorization:`Bearer ${token}` };
   const fmtR = (v: number) => v > 0 ? `+R$ ${v.toFixed(2).replace('.',',')}` : 'Incluso';
 
@@ -1848,6 +1849,7 @@ function ModalOpcoesAdmin({ produtoId, produtoNome, token, allProdutos, onClose 
     setAplicarGrupoId(grupoId);
     setAplicarBusca('');
     setAplicarSelecionados(new Set());
+    setAplicarSobrescrever(false);
     setAplicarResultado(null);
   };
 
@@ -1865,11 +1867,15 @@ function ModalOpcoesAdmin({ produtoId, produtoNome, token, allProdutos, onClose 
     try {
       const r = await fetch(`/api/products/opcoes/grupos/${aplicarGrupoId}/aplicar`, {
         method: 'POST', headers: hdrs,
-        body: JSON.stringify({ produto_ids: Array.from(aplicarSelecionados) })
+        body: JSON.stringify({ produto_ids: Array.from(aplicarSelecionados), sobrescrever: aplicarSobrescrever })
       });
       const data = await r.json();
       if (r.ok) {
-        setAplicarResultado({ aplicados: data.aplicados?.length||0, jaExistiam: data.jaExistiam?.length||0 });
+        setAplicarResultado({
+          aplicados: data.aplicados?.length||0,
+          jaExistiam: data.jaExistiam?.length||0,
+          substituidos: data.substituidos?.length||0,
+        });
       }
     } finally {
       setAplicarSaving(false);
@@ -2072,7 +2078,7 @@ function ModalOpcoesAdmin({ produtoId, produtoNome, token, allProdutos, onClose 
                   <div className="flex items-center gap-1 shrink-0">
                     <button
                       onClick={()=>abrirAplicar(g.id)}
-                      title="Aplicar este grupo a outros produtos" className="p-1.5 hover:bg-emerald-50 text-zinc-300 hover:text-emerald-600 rounded-lg transition-all">
+                      title="Aplicar este grupo a outros produtos" className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 hover:text-emerald-700 rounded-lg transition-all">
                       <Copy size={14}/>
                     </button>
                     <button
@@ -2215,6 +2221,11 @@ function ModalOpcoesAdmin({ produtoId, produtoNome, token, allProdutos, onClose 
                 <p className="font-bold text-zinc-800">
                   Aplicado a {aplicarResultado.aplicados} produto{aplicarResultado.aplicados===1?'':'s'}.
                 </p>
+                {aplicarResultado.substituidos > 0 && (
+                  <p className="text-xs text-zinc-400">
+                    {aplicarResultado.substituidos} grupo{aplicarResultado.substituidos===1?'':'s'} antigo{aplicarResultado.substituidos===1?'':'s'} com o mesmo nome foi{aplicarResultado.substituidos===1?'':'ram'} substituído{aplicarResultado.substituidos===1?'':'s'}.
+                  </p>
+                )}
                 {aplicarResultado.jaExistiam > 0 && (
                   <p className="text-xs text-zinc-400">
                     {aplicarResultado.jaExistiam} já tinha{aplicarResultado.jaExistiam===1?'':'m'} um grupo com esse nome e foram ignorados.
@@ -2230,11 +2241,20 @@ function ModalOpcoesAdmin({ produtoId, produtoNome, token, allProdutos, onClose 
                 <div className="px-5 pt-3 pb-2 shrink-0 space-y-2">
                   <input value={aplicarBusca} onChange={e=>setAplicarBusca(e.target.value)}
                     placeholder="Buscar produto..." className={`${inp} w-full`}/>
-                  <button type="button"
-                    onClick={()=>setAplicarSelecionados(new Set(produtosParaAplicar.map(p=>p.id)))}
-                    className="text-xs font-bold text-emerald-600 hover:underline">
-                    Selecionar todos ({produtosParaAplicar.length})
-                  </button>
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <button type="button"
+                      onClick={()=>setAplicarSelecionados(new Set(produtosParaAplicar.map(p=>p.id)))}
+                      className="text-xs font-bold text-emerald-600 hover:underline">
+                      Selecionar todos ({produtosParaAplicar.length})
+                    </button>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <div onClick={()=>setAplicarSobrescrever(v=>!v)}
+                        className={`w-10 h-5 rounded-full relative transition-all shrink-0 ${aplicarSobrescrever?'bg-amber-500':'bg-zinc-300'}`}>
+                        <div className={`w-4 h-4 bg-white rounded-full absolute top-0.5 shadow transition-all ${aplicarSobrescrever?'left-5':'left-0.5'}`}/>
+                      </div>
+                      <span className="text-xs font-bold text-zinc-600">Substituir grupo existente com mesmo nome</span>
+                    </label>
+                  </div>
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto px-5 py-1 space-y-0.5">
                   {produtosParaAplicar.length === 0 ? (
