@@ -1318,15 +1318,19 @@ const handleAuth = async (e: React.FormEvent) => {
       </aside>
 
       {/* Trilho com seta para recolher/expandir a sidebar (somente telas grandes) */}
-      <div className="hidden lg:flex items-center shrink-0 w-3 hover:w-4 transition-all group">
+      <div className="hidden lg:flex items-center shrink-0 w-4 transition-all group">
         <button
           type="button"
           onClick={() => setSidebarCollapsed(v => !v)}
           title={sidebarCollapsed ? 'Mostrar menu lateral' : 'Ocultar menu lateral'}
           aria-label={sidebarCollapsed ? 'Mostrar menu lateral' : 'Ocultar menu lateral'}
-          className="w-5 h-12 -ml-2.5 flex items-center justify-center rounded-r-lg border border-fp-border bg-fp-card text-fptext-muted shadow-sm hover:bg-fp-hover hover:text-fptext-primary transition-all z-10"
+          className={`w-7 h-16 -ml-3.5 flex items-center justify-center rounded-r-xl border shadow-md transition-all z-10 ${
+            sidebarCollapsed
+              ? 'border-fp-accent bg-fp-accent text-white hover:brightness-110'
+              : 'border-fp-border bg-fp-card text-fptext-muted hover:bg-fp-accent hover:border-fp-accent hover:text-white'
+          }`}
         >
-          {sidebarCollapsed ? <ChevronRight size={14}/> : <ChevronLeft size={14}/>}
+          {sidebarCollapsed ? <ChevronRight size={18} strokeWidth={2.5}/> : <ChevronLeft size={18} strokeWidth={2.5}/>}
         </button>
       </div>
 
