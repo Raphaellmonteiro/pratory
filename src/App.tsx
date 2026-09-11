@@ -6,6 +6,7 @@ import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Monitor, Lock, Menu, Bell, Printer, X as XIcon, Loader2,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 
 import type { Product, CaixaStatusApi, Order } from './types';
@@ -166,10 +167,19 @@ export default function App() {
   const OPERATIONAL_ALERT_SOUND_KEY = 'flowpdv_operational_alert_sound';
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [estabelecimentoSegmento, setEstabelecimentoSegmento] = useState('Restaurante/Food');
-  const [activeTab, setActiveTab] = useState<'pos' | 'dashboard' | 'products' | 'orders' | 'central' | 'finance' | 'estoque' | 'mesas' | 'funcionarios' | 'configuracoes' | 'logs' | 'delivery' | 'clientes' | 'whatsapp-ia'>('pos')
+  const VALID_TABS = ['pos','dashboard','products','orders','central','finance','estoque','mesas','funcionarios','configuracoes','logs','delivery','clientes','whatsapp-ia'];
+  const [activeTab, setActiveTab] = useState<'pos' | 'dashboard' | 'products' | 'orders' | 'central' | 'finance' | 'estoque' | 'mesas' | 'funcionarios' | 'configuracoes' | 'logs' | 'delivery' | 'clientes' | 'whatsapp-ia'>(() => {
+    const saved = localStorage.getItem('active_tab');
+    return (saved && VALID_TABS.includes(saved) ? saved : 'pos') as typeof activeTab;
+  })
   // Tela de menu inicial exibida logo após o login (antes de cair direto no PDV).
-  // Reaberta manualmente pelo botão "Menu" na sidebar.
-  const [showMenuHub, setShowMenuHub] = useState<boolean>(true)
+  // Reaberta manualmente pelo botão "Menu" na sidebar. Em recarregamentos (fora do login),
+  // mantém a última tela em que o usuário estava, em vez de voltar sempre ao hub.
+  const [showMenuHub, setShowMenuHub] = useState<boolean>(() => {
+    const saved = localStorage.getItem('show_menu_hub');
+    return saved === null ? true : saved === 'true';
+  })
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => localStorage.getItem('sidebar_collapsed') === 'true');
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -806,6 +816,10 @@ const fetchProducts = async () => {
     setMobileNavOpen(false);
   };
 
+  useEffect(() => { localStorage.setItem('active_tab', activeTab); }, [activeTab]);
+  useEffect(() => { localStorage.setItem('show_menu_hub', String(showMenuHub)); }, [showMenuHub]);
+  useEffect(() => { localStorage.setItem('sidebar_collapsed', String(sidebarCollapsed)); }, [sidebarCollapsed]);
+
   useEffect(() => {
     if (!token) return;
     if (canAccess(activeTab)) return;
@@ -856,6 +870,8 @@ const handleAuth = async (e: React.FormEvent) => {
     localStorage.removeItem('user_permissoes');
     localStorage.removeItem('user_nome');
     localStorage.removeItem(PLAN_FEATURES_STORAGE_KEY);
+    localStorage.removeItem('active_tab');
+    localStorage.removeItem('show_menu_hub');
     setUserCargo('dono');
     setUserPermissoes(null);
     setUserName('');
@@ -1076,9 +1092,11 @@ const handleAuth = async (e: React.FormEvent) => {
         className={`
           fixed lg:static inset-y-0 left-0 z-50
           w-[min(100%,14rem)] max-w-[85vw] sm:w-[15rem]
-          ${activeTab === 'central'
-            ? 'lg:w-[11rem] xl:w-48 2xl:w-60'
-            : 'lg:w-[13rem] xl:w-56 2xl:w-60'}
+          ${sidebarCollapsed
+            ? 'lg:w-0 lg:min-w-0 lg:border-r-0 lg:overflow-hidden'
+            : (activeTab === 'central'
+              ? 'lg:w-[11rem] xl:w-48 2xl:w-60'
+              : 'lg:w-[13rem] xl:w-56 2xl:w-60')}
           bg-fp-card border-r border-fp-border flex flex-col h-screen min-h-0 shrink-0
           transition-[transform,width] duration-200 ease-out
           ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -1298,6 +1316,19 @@ const handleAuth = async (e: React.FormEvent) => {
           </div>
         </div>
       </aside>
+
+      {/* Trilho com seta para recolher/expandir a sidebar (somente telas grandes) */}
+      <div className="hidden lg:flex items-center shrink-0 w-3 hover:w-4 transition-all group">
+        <button
+          type="button"
+          onClick={() => setSidebarCollapsed(v => !v)}
+          title={sidebarCollapsed ? 'Mostrar menu lateral' : 'Ocultar menu lateral'}
+          aria-label={sidebarCollapsed ? 'Mostrar menu lateral' : 'Ocultar menu lateral'}
+          className="w-5 h-12 -ml-2.5 flex items-center justify-center rounded-r-lg border border-fp-border bg-fp-card text-fptext-muted shadow-sm hover:bg-fp-hover hover:text-fptext-primary transition-all z-10"
+        >
+          {sidebarCollapsed ? <ChevronRight size={14}/> : <ChevronLeft size={14}/>}
+        </button>
+      </div>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex shrink-0 items-center gap-2 border-b border-fp-border bg-fp-card px-2.5 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] lg:hidden">
