@@ -6,11 +6,11 @@ import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Monitor, Lock, Menu, Bell, Printer, X as XIcon, Loader2,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, ChevronDown,
 } from 'lucide-react';
 
 import type { Product, CaixaStatusApi, Order } from './types';
-import NavItem from './components/ui/NavItem';
+import NavItem, { NavSectionLabel } from './components/ui/NavItem';
 import PlanBadge from './components/ui/PlanBadge';
 import { getSegCfg, getOperationalSegment } from './config/segmentos';
 import {
@@ -180,6 +180,8 @@ export default function App() {
     return saved === null ? true : saved === 'true';
   })
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => localStorage.getItem('sidebar_collapsed') === 'true');
+  const [financeMenuOpen, setFinanceMenuOpen] = useState(false);
+  const [financeSubTab, setFinanceSubTab] = useState<'despesas' | 'caixa'>('despesas');
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -1203,57 +1205,104 @@ const handleAuth = async (e: React.FormEvent) => {
           )}
         </div>
 
-     <nav className="flex-1 min-h-0 space-y-1.5 overflow-y-auto p-2.5 lg:p-2.5 lg:space-y-1 xl:p-3 xl:space-y-1.5">
-          {(() => { return (<> 
-            <NavItem active={false} onClick={() => setShowMenuHub(true)} icon="🏠" label="Menu" />
-            {canAccess('pos')    && <NavItem active={activeTab === 'pos'}    onClick={() => handleTabChange('pos')}    icon="🛒" label={segCfg.labelSidebarPOS} />}
-            {canAccess('orders') && (
-              <>
-                <NavItem
-                  active={activeTab === 'central'}
-                  attention={operationalNeedsAttention}
-                  badgeCount={operationalAlertCount > 0 ? operationalAlertCount : undefined}
-                  onClick={() => handleTabChange('central')}
-                  icon="🧩"
-                  label="Operação"
-                />
-                <NavItem
-                  active={activeTab === 'orders'}
-                  onClick={() => handleTabChange('orders')}
-                  icon="📜"
-                  label="Consulta de pedidos"
-                />
-              </>
-            )}
-            {canAccess('delivery') && permiteDelivery && (
-              <NavItem active={activeTab === 'delivery'} onClick={() => handleTabChange('delivery')} icon="🛵" label="Delivery" />
-            )}
-            {permiteMesas && canAccess('mesas') && (
+     <nav className="flex-1 min-h-0 space-y-0.5 overflow-y-auto p-2.5 lg:p-2.5 xl:p-3">
+          <NavItem active={false} onClick={() => setShowMenuHub(true)} icon="🏠" label="Menu" />
+          {canAccess('pos')    && <NavItem active={activeTab === 'pos'}    onClick={() => handleTabChange('pos')}    icon="🛒" label={segCfg.labelSidebarPOS} />}
+          {canAccess('orders') && (
+            <>
               <NavItem
-                active={activeTab === 'mesas'}
-                attention={openMesasCount > 0 && activeTab !== 'mesas'}
-                badgeCount={openMesasCount > 0 ? openMesasCount : undefined}
-                onClick={() => handleTabChange('mesas')}
-                icon="🍽️"
-                label="Mesas"
+                active={activeTab === 'central'}
+                attention={operationalNeedsAttention}
+                badgeCount={operationalAlertCount > 0 ? operationalAlertCount : undefined}
+                onClick={() => handleTabChange('central')}
+                icon="🧩"
+                label="Operação"
               />
-            )}
-            {canAccess('products') && <NavItem active={activeTab === 'products'} onClick={() => handleTabChange('products')} icon="📖" label={segCfg.labelSidebarProdutos} />}
-            {canAccess('clientes') && permiteDelivery && (
-              <NavItem active={activeTab === 'clientes'} onClick={() => handleTabChange('clientes')} icon="👥" label="Clientes" />
-            )}
-            {canAccess('whatsapp-ia') && permiteDelivery && (
-              <NavItem active={activeTab === 'whatsapp-ia'} onClick={() => handleTabChange('whatsapp-ia')} icon="💬" label="WhatsApp IA" />
-            )}
-            {canAccess('estoque')  && <NavItem active={activeTab === 'estoque'}  onClick={() => handleTabChange('estoque')}  icon="📦"  label="Estoque" />}
-          </>); })()}
+              <NavItem
+                active={activeTab === 'orders'}
+                onClick={() => handleTabChange('orders')}
+                icon="📜"
+                label="Consulta de pedidos"
+              />
+            </>
+          )}
+          {canAccess('delivery') && permiteDelivery && (
+            <NavItem active={activeTab === 'delivery'} onClick={() => handleTabChange('delivery')} icon="🛵" label="Delivery" />
+          )}
+          {permiteMesas && canAccess('mesas') && (
+            <NavItem
+              active={activeTab === 'mesas'}
+              attention={openMesasCount > 0 && activeTab !== 'mesas'}
+              badgeCount={openMesasCount > 0 ? openMesasCount : undefined}
+              onClick={() => handleTabChange('mesas')}
+              icon="🍽️"
+              label="Mesas"
+            />
+          )}
+
+          {(canAccess('products') || (canAccess('clientes') && permiteDelivery) || (canAccess('whatsapp-ia') && permiteDelivery)) && (
+            <NavSectionLabel label="Cardápio e Clientes" />
+          )}
+          {canAccess('products') && <NavItem active={activeTab === 'products'} onClick={() => handleTabChange('products')} icon="📖" label={segCfg.labelSidebarProdutos} />}
+          {canAccess('clientes') && permiteDelivery && (
+            <NavItem active={activeTab === 'clientes'} onClick={() => handleTabChange('clientes')} icon="👥" label="Clientes" />
+          )}
+          {canAccess('whatsapp-ia') && permiteDelivery && (
+            <NavItem active={activeTab === 'whatsapp-ia'} onClick={() => handleTabChange('whatsapp-ia')} icon="💬" label="WhatsApp IA" />
+          )}
+
+          {(canAccess('estoque') || canAccess('nfse') || canAccess('finance') || canAccess('funcionarios')) && (
+            <NavSectionLabel label="Gerenciamento" />
+          )}
+          {canAccess('estoque')  && <NavItem active={activeTab === 'estoque'}  onClick={() => handleTabChange('estoque')}  icon="📦"  label="Estoque" />}
           {canAccess('nfse') && (
             <NavItem active={activeTab === 'fiscal'} onClick={() => handleTabChange('fiscal')} icon="📊" label="Fiscal" />
           )}
-          {canAccess('dashboard')    && <NavItem active={activeTab === 'dashboard'}    onClick={() => handleTabChange('dashboard')}    icon="📊" label="Dashboard" />}
-          {canAccess('finance')      && <NavItem active={activeTab === 'finance'}      onClick={() => handleTabChange('finance')}      icon="💰"      label="Financeiro" />}
-          {canAccess('funcionarios') && <NavItem active={activeTab === 'funcionarios'} onClick={() => handleTabChange('funcionarios')} icon="👥"           label="RH" />}
-          {canAccess('logs')         && <NavItem active={activeTab === 'logs'}         onClick={() => handleTabChange('logs')}         icon="🕘"         label="Logs" />}
+          {canAccess('finance') && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  if (activeTab === 'finance') { setFinanceMenuOpen(v => !v); return; }
+                  setFinanceMenuOpen(true);
+                  handleTabChange('finance');
+                }}
+                className={`group relative flex w-full min-w-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors min-h-[38px] lg:min-h-[36px] ${
+                  activeTab === 'finance' ? 'bg-fp-accent/10 text-fp-accent' : 'text-fptext-secondary hover:bg-fp-hover hover:text-fptext-primary'
+                }`}
+              >
+                <span className={`absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full ${activeTab === 'finance' ? 'bg-fp-accent' : 'bg-transparent'}`} />
+                <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center text-[15px] ${activeTab === 'finance' ? 'text-fp-accent' : 'text-fptext-muted group-hover:text-fptext-primary'}`} aria-hidden>💰</span>
+                <span className={`min-w-0 flex-1 truncate text-left text-[13px] leading-snug ${activeTab === 'finance' ? 'font-bold' : 'font-medium'}`}>Financeiro</span>
+                <ChevronDown size={14} className={`shrink-0 transition-transform ${(financeMenuOpen || activeTab === 'finance') ? 'rotate-180' : ''}`} />
+              </button>
+              {(financeMenuOpen || activeTab === 'finance') && (
+                <div className="space-y-0.5">
+                  <NavItem
+                    indent
+                    active={activeTab === 'finance' && financeSubTab === 'despesas'}
+                    onClick={() => { setFinanceSubTab('despesas'); handleTabChange('finance'); }}
+                    icon="🧾"
+                    label="Despesas"
+                  />
+                  <NavItem
+                    indent
+                    active={activeTab === 'finance' && financeSubTab === 'caixa'}
+                    onClick={() => { setFinanceSubTab('caixa'); handleTabChange('finance'); }}
+                    icon="🗄️"
+                    label="Caixa"
+                  />
+                </div>
+              )}
+            </>
+          )}
+          {canAccess('funcionarios') && <NavItem active={activeTab === 'funcionarios'} onClick={() => handleTabChange('funcionarios')} icon="👥" label="RH" />}
+
+          {(canAccess('dashboard') || canAccess('logs')) && <NavSectionLabel label="Análise" />}
+          {canAccess('dashboard') && <NavItem active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} icon="📊" label="Dashboard" />}
+          {canAccess('logs')      && <NavItem active={activeTab === 'logs'}      onClick={() => handleTabChange('logs')}      icon="🕘" label="Logs" />}
+
+          {canAccess('configuracoes') && <NavSectionLabel label="Sistema" />}
           {canAccess('configuracoes')&& <NavItem active={activeTab === 'configuracoes'} onClick={() => handleTabChange('configuracoes')}  icon="⚙️"        label="Configurações" />}
         </nav>
 
@@ -1404,7 +1453,7 @@ const handleAuth = async (e: React.FormEvent) => {
               <WhatsAppIAScreen token={token} slug={slugAtual} />
             )}
             {activeTab === 'mesas' && canAccess('mesas') && permiteMesas && <MesasScreen token={token} taxasPagamento={taxasPagamento} />}
-            {activeTab === 'finance' && canAccess('finance') && <FinanceScreen token={token} segmento={segmentoOperacional} />}
+            {activeTab === 'finance' && canAccess('finance') && <FinanceScreen token={token} segmento={segmentoOperacional} initialTab={financeSubTab} />}
             {activeTab === 'fiscal' && canAccess('nfse') && <FiscalScreen token={token} />}
             {activeTab === 'funcionarios' && canAccess('funcionarios') && <RHScreen token={token} />}
             {activeTab === 'logs' && canAccess('logs') && <SystemLogsScreen token={token} />}

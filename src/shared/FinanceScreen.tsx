@@ -107,8 +107,9 @@ const formatExpenseMeta = (createdAt: string) => {
   });
 };
 
-export default function FinanceScreen({ token, segmento: _segmento }: { token: string; segmento: string }) {
-  const [tab, setTab] = useState<'despesas' | 'caixa'>('despesas');
+export default function FinanceScreen({ token, segmento: _segmento, initialTab }: { token: string; segmento: string; initialTab?: 'despesas' | 'caixa' }) {
+  const [tab, setTab] = useState<'despesas' | 'caixa'>(initialTab || 'despesas');
+  useEffect(() => { if (initialTab) setTab(initialTab); }, [initialTab]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [caixaHistory, setCaixaHistory] = useState<Caixa[]>([]);
   const [financialStats, setFinancialStats] = useState<FinancialStats | null>(null);

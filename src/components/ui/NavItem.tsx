@@ -10,6 +10,8 @@ type NavItemProps = {
   /** Item visível porém não interativo (ex.: “em breve”). */
   disabled?: boolean;
   title?: string;
+  /** Recua o item (usado para sub-itens dentro de um grupo expansível). */
+  indent?: boolean;
 };
 
 export default function NavItem({
@@ -21,6 +23,7 @@ export default function NavItem({
   label,
   disabled = false,
   title,
+  indent = false,
 }: NavItemProps) {
   if (disabled) {
     return (
@@ -28,20 +31,16 @@ export default function NavItem({
         role="button"
         aria-disabled="true"
         title={title}
-        className="group relative flex w-full min-w-0 cursor-not-allowed items-center gap-2.5 rounded-2xl border border-dashed border-fp-border/80 bg-fp-secondary/50 px-3 py-2.5 text-left opacity-60 min-h-[44px] lg:min-h-[48px] lg:gap-3 lg:px-4 lg:py-3"
+        className={`group relative flex w-full min-w-0 cursor-not-allowed items-center gap-2.5 rounded-lg px-2.5 py-2 text-left opacity-50 min-h-[38px] lg:min-h-[36px] ${indent ? 'ml-7' : ''}`}
       >
-        <span className="absolute left-2 top-1/2 h-8 w-1 -translate-y-1/2 rounded-full bg-transparent" />
-        <span
-          className="flowpdv-nav-item-icon-slot inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-fp-border/70 bg-fp-secondary text-fptext-muted lg:h-10 lg:w-10"
-        >
-          <span className="flex h-full w-full items-center justify-center text-[16px] leading-none tracking-normal [.flowpdv-dark_&]:text-[15px]" aria-hidden>
+        <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center text-fptext-muted">
+          <span className="flex h-full w-full items-center justify-center text-[15px] leading-none" aria-hidden>
             {icon}
           </span>
         </span>
-        <span className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold leading-snug tracking-tight text-fptext-muted lg:text-sm">
+        <span className="min-w-0 flex-1 truncate text-left text-[13px] font-medium leading-snug text-fptext-muted">
           {label}
         </span>
-        <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-fp-border/60" />
       </div>
     );
   }
@@ -50,62 +49,56 @@ export default function NavItem({
     <button
       type="button"
       onClick={onClick}
-      className={`group relative flex w-full min-w-0 items-center gap-2.5 rounded-2xl border px-3 py-2.5 text-left transition-all active:opacity-90 min-h-[44px] lg:min-h-[48px] lg:gap-3 lg:px-4 lg:py-3 ${
+      title={title}
+      className={`group relative flex w-full min-w-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors active:opacity-80 min-h-[38px] lg:min-h-[36px] ${indent ? 'ml-7 w-[calc(100%-1.75rem)]' : ''} ${
         active
-          ? 'border-[#EA1D2C] bg-[#EA1D2C] text-white shadow-lg shadow-[#EA1D2C]/22'
+          ? 'bg-fp-accent/10 text-fp-accent'
           : attention
-            ? 'border-amber-300/80 bg-amber-50 text-amber-900 shadow-lg shadow-amber-500/10 hover:border-amber-400 hover:bg-amber-50'
-          : 'border-fp-border/90 bg-fp-card text-fptext-secondary hover:border-fp-border hover:bg-fp-hover hover:text-fptext-primary'
+            ? 'bg-amber-50 text-amber-900 hover:bg-amber-100'
+            : 'text-fptext-secondary hover:bg-fp-hover hover:text-fptext-primary'
       }`}
     >
       <span
-        className={`absolute left-2 top-1/2 h-8 w-1 -translate-y-1/2 rounded-full transition-all ${
-          active ? 'bg-white/90' : attention ? 'bg-amber-500/90' : 'bg-transparent group-hover:bg-fp-border'
+        className={`absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full transition-all ${
+          active ? 'bg-fp-accent' : attention ? 'bg-amber-500' : 'bg-transparent'
         }`}
       />
       <span
-        className={`flowpdv-nav-item-icon-slot inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-all lg:h-10 lg:w-10 ${
-          active
-            ? 'border-white/15 bg-white/14 text-white'
-            : attention
-              ? 'border-amber-200 bg-fp-card text-amber-700'
-            : 'border-fp-border bg-fp-secondary text-fptext-muted group-hover:border-fp-border group-hover:bg-fp-card group-hover:text-fptext-primary'
+        className={`inline-flex h-5 w-5 shrink-0 items-center justify-center ${
+          active ? 'text-fp-accent' : attention ? 'text-amber-700' : 'text-fptext-muted group-hover:text-fptext-primary'
         }`}
       >
-        <span className="flex h-full w-full items-center justify-center text-[16px] leading-none tracking-normal [.flowpdv-dark_&]:text-[15px]" aria-hidden>
+        <span className="flex h-full w-full items-center justify-center text-[15px] leading-none" aria-hidden>
           {icon}
         </span>
       </span>
-      <span className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold leading-snug tracking-tight lg:text-sm">
+      <span className={`min-w-0 flex-1 truncate text-left text-[13px] leading-snug ${active ? 'font-bold' : 'font-medium'}`}>
         {label}
       </span>
-      <span className="flex items-center gap-2 shrink-0">
-        {typeof badgeCount === 'number' && badgeCount > 0 ? (
-          <span
-            className={`min-w-[22px] rounded-full px-1.5 py-0.5 text-center text-[10px] font-black leading-none ${
-              active
-                ? 'bg-white/18 text-white'
-                : attention
-                  ? 'bg-amber-100 text-amber-800'
-                  : 'bg-fp-secondary text-fptext-secondary'
-            }`}
-          >
-            {badgeCount > 99 ? '99+' : badgeCount}
-          </span>
-        ) : null}
+      {typeof badgeCount === 'number' && badgeCount > 0 ? (
         <span
-          className={`h-2.5 w-2.5 rounded-full transition-all ${
+          className={`min-w-[19px] shrink-0 rounded-full px-1.5 py-0.5 text-center text-[10px] font-black leading-none ${
             active
-              ? 'bg-white/90 ring-4 ring-white/12'
+              ? 'bg-fp-accent text-white'
               : attention
-                ? 'bg-amber-500 ring-4 ring-amber-500/20 animate-pulse'
-                : 'bg-fp-border/80 group-hover:bg-fptext-muted/35'
+                ? 'bg-amber-500 text-white'
+                : 'bg-fp-secondary text-fptext-secondary'
           }`}
-        />
-      </span>
+        >
+          {badgeCount > 99 ? '99+' : badgeCount}
+        </span>
+      ) : null}
     </button>
   );
 }
 
-// --- TELA DE LOGIN ---
+/** Cabeçalho discreto de seção (ex.: "ANÁLISE", "GERENCIAMENTO"), no estilo do painel do iFood. */
+export function NavSectionLabel({ label }: { label: string }) {
+  return (
+    <p className="px-2.5 pt-3 pb-1 text-[10px] font-black uppercase tracking-wider text-fptext-muted/70 first:pt-1">
+      {label}
+    </p>
+  );
+}
 
+// --- TELA DE LOGIN ---
