@@ -1,9 +1,8 @@
 /**
  * MenuHubScreen.tsx — Tela de menu inicial pós-login do Pratory.
  *
- * Exibida logo após o login (e reaberta pelo botão "Menu" na sidebar),
- * permitindo que o usuário escolha visualmente para qual área do sistema
- * deseja ir, em vez de cair direto no Balcão/PDV.
+ * Exibida logo após o login, permitindo que o usuário escolha visualmente
+ * para qual área do sistema deseja ir, em vez de cair direto no Balcão/PDV.
  */
 
 import React from 'react';

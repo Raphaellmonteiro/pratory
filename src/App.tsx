@@ -173,8 +173,8 @@ export default function App() {
     return (saved && VALID_TABS.includes(saved) ? saved : 'pos') as typeof activeTab;
   })
   // Tela de menu inicial exibida logo após o login (antes de cair direto no PDV).
-  // Reaberta manualmente pelo botão "Menu" na sidebar. Em recarregamentos (fora do login),
-  // mantém a última tela em que o usuário estava, em vez de voltar sempre ao hub.
+  // Em recarregamentos (fora do login), mantém a última tela em que o usuário
+  // estava, em vez de voltar sempre ao hub.
   const [showMenuHub, setShowMenuHub] = useState<boolean>(() => {
     const saved = localStorage.getItem('show_menu_hub');
     return saved === null ? true : saved === 'true';
@@ -1206,7 +1206,6 @@ const handleAuth = async (e: React.FormEvent) => {
         </div>
 
      <nav className="flex-1 min-h-0 space-y-0.5 overflow-y-auto p-2.5 lg:p-2.5 xl:p-3">
-          <NavItem active={false} onClick={() => setShowMenuHub(true)} icon="🏠" label="Menu" />
           {canAccess('pos')    && <NavItem active={activeTab === 'pos'}    onClick={() => handleTabChange('pos')}    icon="🛒" label={segCfg.labelSidebarPOS} />}
           {canAccess('orders') && (
             <>
