@@ -170,11 +170,6 @@ export default function App() {
   // Tela de menu inicial exibida logo após o login (antes de cair direto no PDV).
   // Reaberta manualmente pelo botão "Menu" na sidebar.
   const [showMenuHub, setShowMenuHub] = useState<boolean>(true)
-  const [floatPos, setFloatPos]   = React.useState(() => {
-    const saved = localStorage.getItem('orders_float_pos');
-    return saved ? JSON.parse(saved) : { x: window.innerWidth - 80, y: window.innerHeight - 120 };
-  });
-  const floatDrag = React.useRef<{ dragging: boolean; ox: number; oy: number; hasDragged: boolean }>({ dragging: false, ox: 0, oy: 0, hasDragged: false });
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -1319,54 +1314,6 @@ const handleAuth = async (e: React.FormEvent) => {
             <p className="text-[11px] text-fptext-muted truncate">{`${userDisplayName} · ${userSecondaryLine}`}</p>
           </div>
         </header>
-
-      {/* Botão flutuante — atalho para Operação (visão ao vivo) */}
-      {canAccess('orders') && (
-        <div
-          title="Operação — visão ao vivo (atalho)"
-          style={{ position: 'fixed', left: floatPos.x, top: floatPos.y, zIndex: 999, cursor: floatDrag.current.dragging ? 'grabbing' : 'grab', userSelect: 'none' }}
-          onMouseDown={(e) => {
-            floatDrag.current = { dragging: true, ox: e.clientX - floatPos.x, oy: e.clientY - floatPos.y, hasDragged: false };
-            const onMove = (ev: MouseEvent) => {
-              if (!floatDrag.current.dragging) return;
-              const nx = Math.max(0, Math.min(window.innerWidth - 56, ev.clientX - floatDrag.current.ox));
-              const ny = Math.max(0, Math.min(window.innerHeight - 56, ev.clientY - floatDrag.current.oy));
-              floatDrag.current.hasDragged = true;
-              setFloatPos({ x: nx, y: ny });
-            };
-            const onUp = () => {
-              floatDrag.current.dragging = false;
-              localStorage.setItem('orders_float_pos', JSON.stringify(floatPos));
-              window.removeEventListener('mousemove', onMove);
-              window.removeEventListener('mouseup', onUp);
-            };
-            window.addEventListener('mousemove', onMove);
-            window.addEventListener('mouseup', onUp);
-          }}
-          onClick={() => {
-            // hasDragged garante que um drag longo não abre a tela ao soltar
-            if (!floatDrag.current.hasDragged) handleTabChange('central');
-            floatDrag.current.hasDragged = false;
-          }}
-        >
-          <div className={`relative flex h-14 w-14 items-center justify-center rounded-2xl border shadow-xl transition-all hover:scale-110 active:scale-95 ${
-            activeTab === 'orders' || activeTab === 'central'
-              ? 'border-zinc-900 bg-zinc-900 text-white'
-              : operationalNeedsAttention
-                ? 'border-amber-300 bg-amber-50 text-amber-900'
-                : 'border-zinc-200 bg-white text-zinc-700'
-          }`}>
-            {operationalAlertCount > 0 && (
-              <span className={`absolute -right-1 -top-1 min-w-[20px] rounded-full px-1 py-0.5 text-center text-[10px] font-black leading-none ${
-                operationalNeedsAttention ? 'bg-amber-500 text-white animate-pulse' : 'bg-zinc-900 text-white'
-              }`}>
-                {operationalAlertCount > 99 ? '99+' : operationalAlertCount}
-              </span>
-            )}
-            <span className="text-[20px] leading-none" aria-hidden>🧩</span>
-          </div>
-        </div>
-      )}
 
 
 
