@@ -1174,7 +1174,16 @@ export default function ProductsScreen({
                       <button
                         key={t.key}
                         type="button"
-                        onClick={() => setActiveTab(t.key)}
+                        onClick={() => {
+                          if (t.key === 'opcoes' && editing?.id) {
+                            const id = editing.id;
+                            setEditing(null);
+                            setPendingPhoto(null);
+                            setOpcoesProdutoId(id);
+                            return;
+                          }
+                          setActiveTab(t.key);
+                        }}
                         className={`px-3 py-2.5 text-xs font-bold whitespace-nowrap border-b-2 transition-all ${
                           activeTab === t.key
                             ? 'border-zinc-900 text-zinc-900'
