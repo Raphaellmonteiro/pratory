@@ -373,7 +373,7 @@ export default function DeliveryScreen({
 
   return (
     <motion.div initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} className="h-full min-h-0 overflow-y-auto bg-fp-secondary">
-      <div className="mx-auto max-w-7xl min-w-0 space-y-4 p-3 sm:space-y-5 sm:p-4 lg:p-6">
+      <div className="mx-auto w-full min-w-0 space-y-4 p-3 sm:space-y-5 sm:p-4 lg:p-6 2xl:max-w-[1800px]">
         <ScreenHeader
           titleAs="h1"
           titleClassName="flex items-center gap-2 flex-wrap"
@@ -1134,11 +1134,14 @@ function PedidoCard({ pedido, motoboys, requiresMotoboy = true, onDetail, onAvan
   const [selectedMotoboy, setSelectedMotoboy] = useState<number | ''>('');
   const elapsed = Math.max(0, Math.floor((Date.now() - new Date(pedido.created_at).getTime()) / 60000));
   return (
-    <div className={`${adminOpsSurfaceCardClass} p-3 transition-all hover:border-zinc-300 hover:shadow-md dark:hover:border-zinc-700 md:p-2.5 lg:p-3 max-md:active:bg-zinc-50/80 dark:max-md:active:bg-zinc-800/40`}>
-      <div className="flex items-start justify-between gap-2 mb-2">
+    <div
+      className={`${adminOpsSurfaceCardClass} cursor-pointer p-2.5 transition-all hover:border-zinc-300 hover:shadow-md dark:hover:border-zinc-700 max-md:active:bg-zinc-50/80 dark:max-md:active:bg-zinc-800/40`}
+      onClick={onDetail}
+    >
+      <div className="flex items-start justify-between gap-2 mb-1.5">
         <div className="min-w-0 flex-1 pr-1">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <p className="font-black text-fptext-primary text-base max-md:text-[15px] leading-tight">#{pedido.order_number}</p>
+            <p className="font-black text-fptext-primary text-sm leading-tight">#{pedido.order_number}</p>
             {deliveryPedidoTemCustomizacaoItens(pedido) && (
               <StatusChip
                 size="sm"
@@ -1151,31 +1154,22 @@ function PedidoCard({ pedido, motoboys, requiresMotoboy = true, onDetail, onAvan
             )}
             <OrderAutomationBadges order={pedido} compact />
           </div>
-          {pedido.cliente_nome && <p className="text-sm max-md:text-[13px] text-zinc-600 dark:text-zinc-300 mt-0.5 line-clamp-2">{pedido.cliente_nome}</p>}
+          {pedido.cliente_nome && <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-0.5 truncate">{pedido.cliente_nome}</p>}
         </div>
         <div className="flex items-center gap-0.5 flex-shrink-0">
           <span className={`text-[11px] font-bold tabular-nums px-1 ${elapsed>=20?'text-red-500':'text-zinc-400 dark:text-zinc-500'}`}>{elapsed===0?'agora':`${elapsed}min`}</span>
-          <button type="button" onClick={onReimprimir} className="flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-100 active:scale-95 dark:text-emerald-400 dark:hover:bg-emerald-500/20 md:min-h-[36px] md:min-w-[36px]" title="Cupom (cliente)"><Printer size={16}/></button>
-          <button type="button" onClick={onImprimirProducao} className="flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg text-amber-800 hover:bg-amber-100 active:scale-95 dark:text-amber-200 dark:hover:bg-amber-500/20 md:min-h-[36px] md:min-w-[36px]" title="Produção (cozinha)"><ChefHat size={16}/></button>
-          <button type="button" onClick={onDetail} className="flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 active:scale-95 dark:text-zinc-400 dark:hover:bg-zinc-800 md:min-h-[36px] md:min-w-[36px]" aria-label="Ver detalhes"><ChevronRight size={18}/></button>
+          <button type="button" onClick={(e) => { e.stopPropagation(); onReimprimir(); }} className="flex min-h-[36px] min-w-[36px] items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-100 active:scale-95 dark:text-emerald-400 dark:hover:bg-emerald-500/20" title="Cupom (cliente)"><Printer size={15}/></button>
+          <button type="button" onClick={(e) => { e.stopPropagation(); onImprimirProducao(); }} className="flex min-h-[36px] min-w-[36px] items-center justify-center rounded-lg text-amber-800 hover:bg-amber-100 active:scale-95 dark:text-amber-200 dark:hover:bg-amber-500/20" title="Produção (cozinha)"><ChefHat size={15}/></button>
+          <ChevronRight size={16} className="text-zinc-300 dark:text-zinc-600 shrink-0" aria-hidden />
         </div>
       </div>
-      <p
-        className={`text-sm max-md:text-[13px] text-zinc-600 dark:text-zinc-400 leading-snug line-clamp-3 break-words ${
-          deliveryPedidoTemCustomizacaoItens(pedido) ? 'mb-1' : 'mb-2'
-        }`}
-      >
+      <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-snug truncate mb-1.5">
         {pedido.resumo_itens || '—'}
       </p>
-      {deliveryPedidoTemCustomizacaoItens(pedido) && (
-        <p className="text-[10px] font-semibold text-violet-700 dark:text-violet-300 mb-2 leading-snug">
-          Itens com personalização — abra o pedido para ver composição completa.
-        </p>
-      )}
       <div className="flex items-center justify-between gap-2">
-        <span className="font-black text-base text-zinc-800 dark:text-zinc-200 tabular-nums">{fmt(pedido.total_amount)}</span>
+        <span className="font-black text-sm text-zinc-800 dark:text-zinc-200 tabular-nums">{fmt(pedido.total_amount)}</span>
         <StatusChip
-          size="md"
+          size="sm"
           variant={pedido.pagamento_status === 'pago' ? 'success' : 'warning'}
           className="shrink-0 tabular-nums"
         >
@@ -1183,10 +1177,10 @@ function PedidoCard({ pedido, motoboys, requiresMotoboy = true, onDetail, onAvan
         </StatusChip>
       </div>
       {cfg.next && (
-        <div className="mt-3 space-y-2">
+        <div className="mt-2 space-y-1.5" onClick={(e) => e.stopPropagation()}>
           {cfg.next==='Saiu para Entrega' && requiresMotoboy && (
             <select value={selectedMotoboy} onChange={e=>setSelectedMotoboy(e.target.value?Number(e.target.value):'')}
-              className={`w-full text-sm px-3 py-2.5 min-h-[44px] border rounded-xl bg-white dark:bg-zinc-800 transition-all ${!selectedMotoboy?'border-amber-400 dark:border-amber-500/50 bg-amber-50 dark:bg-amber-500/10':'border-zinc-200 dark:border-zinc-700'}`}>
+              className={`w-full text-xs px-2.5 py-2 min-h-[38px] border rounded-lg bg-white dark:bg-zinc-800 transition-all ${!selectedMotoboy?'border-amber-400 dark:border-amber-500/50 bg-amber-50 dark:bg-amber-500/10':'border-zinc-200 dark:border-zinc-700'}`}>
               <option value="">⚠️ Selecione o motoboy...</option>
               {motoboys.length===0
                 ? <option disabled>Nenhum motoboy cadastrado</option>
@@ -1203,13 +1197,13 @@ function PedidoCard({ pedido, motoboys, requiresMotoboy = true, onDetail, onAvan
                 onClick={() => { if (!bloqueado) onAvancar(selectedMotoboy||undefined); }}
                 disabled={bloqueado}
                 title={bloqueado ? 'Selecione um motoboy antes de despachar' : undefined}
-                className={`w-full flex items-center justify-center gap-2 py-2.5 min-h-[44px] rounded-xl text-sm font-bold transition-all ${
+                className={`w-full flex items-center justify-center gap-1.5 py-2 min-h-[38px] rounded-lg text-xs font-bold transition-all ${
                   bloqueado
                     ? 'bg-zinc-100 dark:bg-zinc-800 text-fptext-muted cursor-not-allowed border border-zinc-200 dark:border-zinc-700'
                     : 'hover:opacity-90 active:scale-[0.98]'
                 }`}
                 style={!bloqueado ? { background:cfg.color, color:'#fff' } : {}}>
-                <ChevronRight size={16}/>
+                <ChevronRight size={14}/>
                 {bloqueado
                   ? 'Selecione o motoboy'
                   : deliveryNextPrimaryLabel(cfg.next!)}
