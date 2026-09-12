@@ -13,7 +13,6 @@ import { getOrderItemDetailText, orderHasAnyItemCustomization, splitOrderItemDet
 import { getDeliveryNextStatus } from '../utils/deliveryStatusNext';
 import { playNewOrderSound } from '../utils/sound';
 import { DEFAULT_TENANT_AUTOMATION, type TenantAutomationConfig } from '../services/automationConfig';
-import { OrderAutomationBadges } from '../components/OrderAutomationBadges';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
 import { Spinner } from '../components/ui/Spinner';
@@ -786,7 +785,7 @@ function TabPainel({ token, hasMotoboyFeature = true }: { token: string; hasMoto
                   <span className="font-black text-sm text-fptext-primary truncate min-w-0">{cfg.label}</span>
                   <span className={`ml-auto shrink-0 text-xs font-black px-2.5 py-1 rounded-full tabular-nums ${cfg.toneClass}`}>{colPedidos.length}</span>
                 </div>
-                <div className="min-h-[100px] space-y-1.5 overflow-y-auto overflow-x-hidden overscroll-y-contain p-1.5 touch-pan-y max-md:max-h-[min(52vh,28rem)] max-h-[min(58vh,26rem)] md:max-h-[min(62vh,30rem)] lg:space-y-2 lg:p-2 xl:max-h-[65vh]">
+                <div className="min-h-[100px] overflow-y-auto overflow-x-hidden overscroll-y-contain p-1.5 touch-pan-y max-md:max-h-[min(52vh,28rem)] max-h-[min(58vh,26rem)] md:max-h-[min(62vh,30rem)] lg:p-2 xl:max-h-[65vh]">
                   {colPedidos.length===0 ? (
                     <div className={`mx-1 ${adminOpsDashedWellClass}`}>
                       <EmptyState
@@ -796,7 +795,9 @@ function TabPainel({ token, hasMotoboyFeature = true }: { token: string; hasMoto
                         className="!py-8 sm:!py-10 px-2"
                       />
                     </div>
-                  ) : colPedidos.map(p => {
+                  ) : (
+                  <div className="grid grid-cols-2 gap-1.5 content-start lg:gap-2">
+                  {colPedidos.map(p => {
                     const pedidoCfg = STATUS_CFG[p.status] || STATUS_CFG['Criado'];
                     return (
                       <PedidoCard key={p.id} pedido={p} motoboys={motoboys} requiresMotoboy={hasMotoboyFeature}
@@ -809,6 +810,8 @@ function TabPainel({ token, hasMotoboyFeature = true }: { token: string; hasMoto
                       />
                     );
                   })}
+                  </div>
+                  )}
                 </div>
               </div>
             );
@@ -1198,36 +1201,21 @@ function PedidoCard({ pedido, motoboys, requiresMotoboy = true, onDetail, onAvan
   cfg: any;
 }) {
   const [selectedMotoboy, setSelectedMotoboy] = useState<number | ''>('');
-  const elapsed = Math.max(0, Math.floor((Date.now() - new Date(pedido.created_at).getTime()) / 60000));
-  const temPersonalizacao = deliveryPedidoTemCustomizacaoItens(pedido);
   return (
     <div
       draggable
       onDragStart={onDragStart}
       onClick={onDetail}
       title="Clique para ver os detalhes do pedido"
-      className={`${adminOpsSurfaceCardClass} cursor-grab active:cursor-grabbing p-2 transition-all hover:border-zinc-300 hover:shadow-md dark:hover:border-zinc-700 max-md:active:bg-zinc-50/80 dark:max-md:active:bg-zinc-800/40`}
+      className={`${adminOpsSurfaceCardClass} cursor-grab active:cursor-grabbing p-2.5 flex flex-col items-center justify-center gap-2 text-center transition-all hover:border-zinc-300 hover:shadow-md dark:hover:border-zinc-700 max-md:active:bg-zinc-50/80 dark:max-md:active:bg-zinc-800/40`}
     >
-      <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0 flex-1 flex items-center gap-1.5">
-          {temPersonalizacao && (
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" title="Itens com observações ou adicionais" aria-hidden />
-          )}
-          <p className="font-black text-fptext-primary text-sm leading-tight truncate">#{pedido.order_number}</p>
-          <OrderAutomationBadges order={pedido} compact />
-        </div>
-        <div className="flex items-center gap-0.5 flex-shrink-0">
-          <span className={`text-[11px] font-bold tabular-nums px-1 ${elapsed>=20?'text-red-500':'text-zinc-400 dark:text-zinc-500'}`}>{elapsed===0?'agora':`${elapsed}min`}</span>
-          <button type="button" onClick={(e) => { e.stopPropagation(); onReimprimir(); }} className="flex min-h-[32px] min-w-[32px] items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-100 active:scale-95 dark:text-emerald-400 dark:hover:bg-emerald-500/20" title="Cupom (cliente)"><Printer size={14}/></button>
-          <button type="button" onClick={(e) => { e.stopPropagation(); onImprimirProducao(); }} className="flex min-h-[32px] min-w-[32px] items-center justify-center rounded-lg text-amber-800 hover:bg-amber-100 active:scale-95 dark:text-amber-200 dark:hover:bg-amber-500/20" title="Produção (cozinha)"><ChefHat size={14}/></button>
-        </div>
-      </div>
+      <p className="font-black text-fptext-primary text-sm leading-tight truncate w-full">#{pedido.order_number}</p>
       {cfg.next && (
-        <div className="mt-1.5 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+        <div className="w-full space-y-1.5" onClick={(e) => e.stopPropagation()}>
           {cfg.next==='Saiu para Entrega' && requiresMotoboy && (
             <select value={selectedMotoboy} onChange={e=>setSelectedMotoboy(e.target.value?Number(e.target.value):'')}
-              className={`w-full text-xs px-2.5 py-1.5 min-h-[32px] border rounded-lg bg-white dark:bg-zinc-800 transition-all ${!selectedMotoboy?'border-amber-400 dark:border-amber-500/50 bg-amber-50 dark:bg-amber-500/10':'border-zinc-200 dark:border-zinc-700'}`}>
-              <option value="">⚠️ Selecione o motoboy...</option>
+              className={`w-full text-[11px] px-2 py-1.5 min-h-[32px] border rounded-lg bg-white dark:bg-zinc-800 transition-all ${!selectedMotoboy?'border-amber-400 dark:border-amber-500/50 bg-amber-50 dark:bg-amber-500/10':'border-zinc-200 dark:border-zinc-700'}`}>
+              <option value="">⚠️ Motoboy...</option>
               {motoboys.length===0
                 ? <option disabled>Nenhum motoboy cadastrado</option>
                 : motoboys.map(m=><option key={m.id} value={m.id}>{m.nome}</option>)
