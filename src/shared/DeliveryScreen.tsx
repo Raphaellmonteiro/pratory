@@ -6,7 +6,7 @@ import {
   User, CreditCard, Banknote, Smartphone, Check,
   Truck, AlertCircle, DollarSign, TrendingUp, Users, Search,
   Printer, Navigation, MessageCircle, BarChart2, Tag, Plus, Trash2, ChefHat,
-  Zap, Globe, Bell, BellOff, Map, Palette, ListTree, Image, Upload,
+  Zap, Globe, Bell, BellOff, Map, Palette, Image, Upload,
 } from 'lucide-react';
 import { openPrintPreview } from '../utils/print';
 import { getOrderItemDetailText, orderHasAnyItemCustomization, splitOrderItemDetailLines } from '../utils/orderItemDisplay';
@@ -509,6 +509,8 @@ function TabPainel({ token, hasMotoboyFeature = true }: { token: string; hasMoto
   const [loading, setLoading]           = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('ativos');
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null);
+  const [modalMotoboy, setModalMotoboy] = useState<number | ''>('');
+  useEffect(() => { setModalMotoboy(''); }, [selectedPedido?.id]);
   const [sseConectado, setSseConectado] = useState(false);
   const [somAtivo, setSomAtivo]         = useState(() => localStorage.getItem('delivery_som') !== 'false');
   const [opsToast, setOpsToast]         = useState<{ msg: string; ok: boolean } | null>(null);
@@ -670,8 +672,44 @@ function TabPainel({ token, hasMotoboyFeature = true }: { token: string; hasMoto
     : statusFilter === 'todos'           ? pedidos
     : statusFilter === 'Pedido Recebido' ? pedidos.filter(p => p.status==='Criado'||p.status==='Pedido Recebido')
     : pedidos.filter(p => p.status === statusFilter);
-  const COLUNAS = ['Criado','Em Preparo','Pronto para Entrega','Saiu para Entrega'];
+  // Colunas do quadro operacional: "Recebido" foi fundido em "Em Preparo" (como no iFood —
+  // o pedido já entra pronto para ser preparado; o botão "Aceitar" continua existindo por
+  // pedido quando aplicável, só não vira mais uma coluna separada).
+  const COLUNAS = ['Em Preparo','Pronto para Entrega','Saiu para Entrega'] as const;
+  const colunaPedidos = (col: string) =>
+    col === 'Em Preparo'
+      ? pedidos.filter(p => p.status==='Criado'||p.status==='Pedido Recebido'||p.status==='Em Preparo')
+      : pedidos.filter(p => p.status===col);
   const selectedPedidoSnapshot = parseDeliveryCheckoutSnapshot(selectedPedido?.delivery_checkout_snapshot);
+
+  // ── Drag and drop entre colunas ──────────────────────────────────────────
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const handleCardDragStart = (e: React.DragEvent, pedidoId: number) => {
+    e.dataTransfer.setData('text/plain', String(pedidoId));
+    e.dataTransfer.effectAllowed = 'move';
+  };
+  const handleColDrop = (col: string, e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOverCol(null);
+    const id = Number(e.dataTransfer.getData('text/plain'));
+    const p = pedidos.find(x => x.id === id);
+    if (!p) return;
+    if (colunaPedidos(col).some(x => x.id === id)) return; // já está nessa coluna
+    if (col === 'Saiu para Entrega' && hasMotoboyFeature) {
+      if (motoboys.length === 0) {
+        alert('Cadastre um motoboy antes de despachar este pedido.');
+        return;
+      }
+      if (motoboys.length === 1) {
+        mudarStatus(id, 'Saiu para Entrega', motoboys[0].id);
+        return;
+      }
+      // Múltiplos motoboys: abre o pedido para escolher quem vai entregar.
+      setSelectedPedido(p);
+      return;
+    }
+    mudarStatus(id, col);
+  };
 
   return (
     <div className="min-w-0 space-y-4 lg:space-y-5">
@@ -729,18 +767,19 @@ function TabPainel({ token, hasMotoboyFeature = true }: { token: string; hasMoto
             max-md:gap-3 max-md:pb-3 max-md:pt-0.5 max-md:-mx-1 max-md:px-1
             max-md:scroll-pl-3 max-md:scroll-pr-3
             [-webkit-overflow-scrolling:touch]
-            md:grid md:min-w-0 md:grid-cols-2 md:gap-3 md:overflow-visible md:scroll-pl-0 md:scroll-pr-0 lg:grid-cols-2 xl:grid-cols-4 xl:gap-4
+            md:grid md:min-w-0 md:grid-cols-2 md:gap-3 md:overflow-visible md:scroll-pl-0 md:scroll-pr-0 lg:grid-cols-3 xl:gap-4
           "
         >
           {COLUNAS.map(col => {
-            const colPedidos = col==='Criado'
-              ? pedidos.filter(p => p.status==='Criado'||p.status==='Pedido Recebido')
-              : pedidos.filter(p => p.status===col);
+            const colPedidos = colunaPedidos(col);
             const cfg = STATUS_CFG[col];
             return (
               <div
                 key={col}
-                className={`${adminOpsSurfaceCardClass} overflow-hidden flex flex-col max-md:w-[min(85vw,20rem)] max-md:max-w-[85vw] max-md:flex-shrink-0 max-md:snap-center md:min-w-0 md:w-auto md:max-w-none`}
+                onDragOver={(e) => { e.preventDefault(); if (dragOverCol !== col) setDragOverCol(col); }}
+                onDragLeave={() => setDragOverCol((c) => (c === col ? null : c))}
+                onDrop={(e) => handleColDrop(col, e)}
+                className={`${adminOpsSurfaceCardClass} overflow-hidden flex flex-col max-md:w-[min(85vw,20rem)] max-md:max-w-[85vw] max-md:flex-shrink-0 max-md:snap-center md:min-w-0 md:w-auto md:max-w-none transition-colors ${dragOverCol===col ? 'ring-2 ring-offset-1 ring-zinc-400 dark:ring-zinc-500' : ''}`}
               >
                 <div className="flex shrink-0 items-center gap-2 border-b border-zinc-100 px-3 py-2.5 dark:border-zinc-800 sm:px-4 lg:py-3" style={{ borderLeftWidth:3, borderLeftColor:cfg.color }}>
                   <span className="shrink-0" style={{ color:cfg.color }}>{cfg.icon}</span>
@@ -757,15 +796,19 @@ function TabPainel({ token, hasMotoboyFeature = true }: { token: string; hasMoto
                         className="!py-8 sm:!py-10 px-2"
                       />
                     </div>
-                  ) : colPedidos.map(p => (
-                    <PedidoCard key={p.id} pedido={p} motoboys={motoboys} requiresMotoboy={hasMotoboyFeature}
-                      onDetail={() => setSelectedPedido(p)}
-                      onAvancar={(mbId) => cfg.next && mudarStatus(p.id, cfg.next!, mbId)}
-                      onReimprimir={() => reimprimir(p.id)}
-                      onImprimirProducao={() => imprimirProducao(p.id)}
-                      cfg={cfg}
-                    />
-                  ))}
+                  ) : colPedidos.map(p => {
+                    const pedidoCfg = STATUS_CFG[p.status] || STATUS_CFG['Criado'];
+                    return (
+                      <PedidoCard key={p.id} pedido={p} motoboys={motoboys} requiresMotoboy={hasMotoboyFeature}
+                        onDetail={() => setSelectedPedido(p)}
+                        onAvancar={(mbId) => pedidoCfg.next && mudarStatus(p.id, pedidoCfg.next!, mbId)}
+                        onReimprimir={() => reimprimir(p.id)}
+                        onImprimirProducao={() => imprimirProducao(p.id)}
+                        onDragStart={(e) => handleCardDragStart(e, p.id)}
+                        cfg={pedidoCfg}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -1103,12 +1146,34 @@ function TabPainel({ token, hasMotoboyFeature = true }: { token: string; hasMoto
                 {(() => {
                   const cfg = STATUS_CFG[selectedPedido.status] || STATUS_CFG['Pedido Recebido'];
                   if (!cfg.next) return null;
+                  const precisaMotoboy = cfg.next === 'Saiu para Entrega' && hasMotoboyFeature;
+                  const bloqueado = precisaMotoboy && (!modalMotoboy || motoboys.length === 0);
                   return (
-                    <button onClick={() => { mudarStatus(selectedPedido.id, cfg.next!); }}
-                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all hover:opacity-90 active:scale-95"
-                      style={{ background:cfg.color, color:'#fff' }}>
-                      <ChevronRight size={16}/> {deliveryNextPrimaryLabel(cfg.next!)} — {deliveryNextActionTitle(cfg.next!)}
-                    </button>
+                    <div className="space-y-2">
+                      {precisaMotoboy && (
+                        <select value={modalMotoboy} onChange={e=>setModalMotoboy(e.target.value?Number(e.target.value):'')}
+                          className={`w-full text-sm px-3 py-2.5 min-h-[44px] border rounded-xl bg-white dark:bg-zinc-800 transition-all ${!modalMotoboy?'border-amber-400 dark:border-amber-500/50 bg-amber-50 dark:bg-amber-500/10':'border-zinc-200 dark:border-zinc-700'}`}>
+                          <option value="">⚠️ Selecione o motoboy...</option>
+                          {motoboys.length===0
+                            ? <option disabled>Nenhum motoboy cadastrado</option>
+                            : motoboys.map(m=><option key={m.id} value={m.id}>{m.nome}</option>)
+                          }
+                        </select>
+                      )}
+                      <button
+                        onClick={() => { if (!bloqueado) mudarStatus(selectedPedido.id, cfg.next!, modalMotoboy || undefined); }}
+                        disabled={bloqueado}
+                        title={bloqueado ? 'Selecione um motoboy antes de despachar' : undefined}
+                        className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all ${
+                          bloqueado
+                            ? 'bg-zinc-100 dark:bg-zinc-800 text-fptext-muted cursor-not-allowed border border-zinc-200 dark:border-zinc-700'
+                            : 'hover:opacity-90 active:scale-95'
+                        }`}
+                        style={!bloqueado ? { background:cfg.color, color:'#fff' } : {}}>
+                        <ChevronRight size={16}/>
+                        {bloqueado ? 'Selecione o motoboy' : <>{deliveryNextPrimaryLabel(cfg.next!)} — {deliveryNextActionTitle(cfg.next!)}</>}
+                      </button>
+                    </div>
                   );
                 })()}
               </div>
@@ -1122,65 +1187,46 @@ function TabPainel({ token, hasMotoboyFeature = true }: { token: string; hasMoto
 }
 
 // ─── PedidoCard ───────────────────────────────────────────────────────────────
-function PedidoCard({ pedido, motoboys, requiresMotoboy = true, onDetail, onAvancar, onReimprimir, onImprimirProducao, cfg }: {
+function PedidoCard({ pedido, motoboys, requiresMotoboy = true, onDetail, onAvancar, onReimprimir, onImprimirProducao, onDragStart, cfg }: {
   key?: React.Key;
   pedido: Pedido; motoboys: Motoboy[];
   requiresMotoboy?: boolean;
   onDetail: () => void; onAvancar: (mbId?: number) => void | Promise<void>;
   onReimprimir: () => void | Promise<void>;
   onImprimirProducao: () => void | Promise<void>;
+  onDragStart?: (e: React.DragEvent) => void;
   cfg: any;
 }) {
   const [selectedMotoboy, setSelectedMotoboy] = useState<number | ''>('');
   const elapsed = Math.max(0, Math.floor((Date.now() - new Date(pedido.created_at).getTime()) / 60000));
+  const temPersonalizacao = deliveryPedidoTemCustomizacaoItens(pedido);
   return (
     <div
-      className={`${adminOpsSurfaceCardClass} cursor-pointer p-2.5 transition-all hover:border-zinc-300 hover:shadow-md dark:hover:border-zinc-700 max-md:active:bg-zinc-50/80 dark:max-md:active:bg-zinc-800/40`}
+      draggable
+      onDragStart={onDragStart}
       onClick={onDetail}
+      title="Clique para ver os detalhes do pedido"
+      className={`${adminOpsSurfaceCardClass} cursor-grab active:cursor-grabbing p-2 transition-all hover:border-zinc-300 hover:shadow-md dark:hover:border-zinc-700 max-md:active:bg-zinc-50/80 dark:max-md:active:bg-zinc-800/40`}
     >
-      <div className="flex items-start justify-between gap-2 mb-1.5">
-        <div className="min-w-0 flex-1 pr-1">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <p className="font-black text-fptext-primary text-sm leading-tight">#{pedido.order_number}</p>
-            {deliveryPedidoTemCustomizacaoItens(pedido) && (
-              <StatusChip
-                size="sm"
-                icon={ListTree}
-                toneClassName="border-violet-200 dark:border-violet-500/40 bg-violet-50 dark:bg-violet-500/15 text-violet-800 dark:text-violet-200"
-                title="Itens com observações ou adicionais"
-              >
-                Pers.
-              </StatusChip>
-            )}
-            <OrderAutomationBadges order={pedido} compact />
-          </div>
-          {pedido.cliente_nome && <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-0.5 truncate">{pedido.cliente_nome}</p>}
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0 flex-1 flex items-center gap-1.5">
+          {temPersonalizacao && (
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" title="Itens com observações ou adicionais" aria-hidden />
+          )}
+          <p className="font-black text-fptext-primary text-sm leading-tight truncate">#{pedido.order_number}</p>
+          <OrderAutomationBadges order={pedido} compact />
         </div>
         <div className="flex items-center gap-0.5 flex-shrink-0">
           <span className={`text-[11px] font-bold tabular-nums px-1 ${elapsed>=20?'text-red-500':'text-zinc-400 dark:text-zinc-500'}`}>{elapsed===0?'agora':`${elapsed}min`}</span>
-          <button type="button" onClick={(e) => { e.stopPropagation(); onReimprimir(); }} className="flex min-h-[36px] min-w-[36px] items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-100 active:scale-95 dark:text-emerald-400 dark:hover:bg-emerald-500/20" title="Cupom (cliente)"><Printer size={15}/></button>
-          <button type="button" onClick={(e) => { e.stopPropagation(); onImprimirProducao(); }} className="flex min-h-[36px] min-w-[36px] items-center justify-center rounded-lg text-amber-800 hover:bg-amber-100 active:scale-95 dark:text-amber-200 dark:hover:bg-amber-500/20" title="Produção (cozinha)"><ChefHat size={15}/></button>
-          <ChevronRight size={16} className="text-zinc-300 dark:text-zinc-600 shrink-0" aria-hidden />
+          <button type="button" onClick={(e) => { e.stopPropagation(); onReimprimir(); }} className="flex min-h-[32px] min-w-[32px] items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-100 active:scale-95 dark:text-emerald-400 dark:hover:bg-emerald-500/20" title="Cupom (cliente)"><Printer size={14}/></button>
+          <button type="button" onClick={(e) => { e.stopPropagation(); onImprimirProducao(); }} className="flex min-h-[32px] min-w-[32px] items-center justify-center rounded-lg text-amber-800 hover:bg-amber-100 active:scale-95 dark:text-amber-200 dark:hover:bg-amber-500/20" title="Produção (cozinha)"><ChefHat size={14}/></button>
         </div>
       </div>
-      <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-snug truncate mb-1.5">
-        {pedido.resumo_itens || '—'}
-      </p>
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-black text-sm text-zinc-800 dark:text-zinc-200 tabular-nums">{fmt(pedido.total_amount)}</span>
-        <StatusChip
-          size="sm"
-          variant={pedido.pagamento_status === 'pago' ? 'success' : 'warning'}
-          className="shrink-0 tabular-nums"
-        >
-          {pedido.pagamento_status === 'pago' ? 'Pago' : 'Aguardando'}
-        </StatusChip>
-      </div>
       {cfg.next && (
-        <div className="mt-2 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+        <div className="mt-1.5 space-y-1.5" onClick={(e) => e.stopPropagation()}>
           {cfg.next==='Saiu para Entrega' && requiresMotoboy && (
             <select value={selectedMotoboy} onChange={e=>setSelectedMotoboy(e.target.value?Number(e.target.value):'')}
-              className={`w-full text-xs px-2.5 py-2 min-h-[38px] border rounded-lg bg-white dark:bg-zinc-800 transition-all ${!selectedMotoboy?'border-amber-400 dark:border-amber-500/50 bg-amber-50 dark:bg-amber-500/10':'border-zinc-200 dark:border-zinc-700'}`}>
+              className={`w-full text-xs px-2.5 py-1.5 min-h-[32px] border rounded-lg bg-white dark:bg-zinc-800 transition-all ${!selectedMotoboy?'border-amber-400 dark:border-amber-500/50 bg-amber-50 dark:bg-amber-500/10':'border-zinc-200 dark:border-zinc-700'}`}>
               <option value="">⚠️ Selecione o motoboy...</option>
               {motoboys.length===0
                 ? <option disabled>Nenhum motoboy cadastrado</option>
@@ -1197,13 +1243,13 @@ function PedidoCard({ pedido, motoboys, requiresMotoboy = true, onDetail, onAvan
                 onClick={() => { if (!bloqueado) onAvancar(selectedMotoboy||undefined); }}
                 disabled={bloqueado}
                 title={bloqueado ? 'Selecione um motoboy antes de despachar' : undefined}
-                className={`w-full flex items-center justify-center gap-1.5 py-2 min-h-[38px] rounded-lg text-xs font-bold transition-all ${
+                className={`w-full flex items-center justify-center gap-1.5 py-1.5 min-h-[32px] rounded-lg text-xs font-bold transition-all ${
                   bloqueado
                     ? 'bg-zinc-100 dark:bg-zinc-800 text-fptext-muted cursor-not-allowed border border-zinc-200 dark:border-zinc-700'
                     : 'hover:opacity-90 active:scale-[0.98]'
                 }`}
                 style={!bloqueado ? { background:cfg.color, color:'#fff' } : {}}>
-                <ChevronRight size={14}/>
+                <ChevronRight size={13}/>
                 {bloqueado
                   ? 'Selecione o motoboy'
                   : deliveryNextPrimaryLabel(cfg.next!)}
