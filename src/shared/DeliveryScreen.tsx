@@ -506,7 +506,6 @@ function TabPainel({ token, hasMotoboyFeature = true }: { token: string; hasMoto
   const DELIVERY_POLLING_INTERVAL_MS = 10000;
   const [pedidos, setPedidos]           = useState<Pedido[]>([]);
   const [motoboys, setMotoboys]         = useState<Motoboy[]>([]);
-  const [dash, setDash]                 = useState<Dashboard | null>(null);
   const [loading, setLoading]           = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('ativos');
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null);
@@ -527,10 +526,9 @@ function TabPainel({ token, hasMotoboyFeature = true }: { token: string; hasMoto
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
     try {
-      const [pRes, mRes, dRes] = await Promise.all([
+      const [pRes, mRes] = await Promise.all([
         fetch('/api/delivery/pedidos', { headers: hdrs }),
         hasMotoboyFeature ? fetch('/api/delivery/motoboys', { headers: hdrs }) : Promise.resolve(null),
-        fetch('/api/delivery/dashboard', { headers: hdrs }),
       ]);
       if (pRes.ok) {
         const d = await pRes.json();
@@ -555,7 +553,6 @@ function TabPainel({ token, hasMotoboyFeature = true }: { token: string; hasMoto
       } else if (!hasMotoboyFeature) {
         setMotoboys([]);
       }
-      if (dRes.ok) { const d = await dRes.json(); setDash(d); }
     } catch {}
     finally {
       isFetchingRef.current = false;
@@ -690,18 +687,6 @@ function TabPainel({ token, hasMotoboyFeature = true }: { token: string; hasMoto
           {opsToast.msg}
         </div>
       )}
-      {/* Dashboard */}
-      {dash && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-3 xl:grid-cols-6">
-          <DCard label="Pedidos Hoje"  value={String(dash.pedidos_hoje)}   color="blue"    icon={<Package size={16}/>} />
-          <DCard label="Faturamento"   value={fmt(dash.faturamento_hoje)}  color="emerald" icon={<DollarSign size={16}/>} />
-          <DCard label="Em Preparo"    value={String(dash.em_preparo)}     color="amber"   icon={<Clock size={16}/>} />
-          <DCard label="Em Rota"       value={String(dash.em_rota)}        color="orange"  icon={<Bike size={16}/>} />
-          <DCard label="Ticket Médio"  value={fmt(dash.ticket_medio)}      color="purple"  icon={<TrendingUp size={16}/>} />
-          <DCard label="Top Motoboy"   value={dash.top_motoboy ? `${dash.top_motoboy.nome.split(' ')[0]} (${dash.top_motoboy.entregas})` : '—'} color="zinc" icon={<User size={16}/>} />
-        </div>
-      )}
-
       {/* Barra de controles — mobile: filtros em faixa rolável; tools em linha própria */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-2">
         <div className="flex items-center gap-2 overflow-x-auto overflow-y-hidden pb-0.5 -mx-1 px-1 sm:mx-0 sm:px-0 sm:flex-wrap sm:overflow-visible touch-pan-x overscroll-x-contain scroll-pl-1 scroll-pr-1 [-webkit-overflow-scrolling:touch]">
@@ -2309,6 +2294,7 @@ function TabRelatorio({ token }: { token: string }) {
   const [periodo, setPeriodo] = useState<string>('7d');
   const [data, setData]       = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [liveDash, setLiveDash] = useState<Dashboard | null>(null);
   const [sugestoesAceitas, setSugestoesAceitas] = useState<
     { produto_origem_id: number; produto_sugerido_id: number; total: number; origem_name: string | null; sugerido_name: string | null }[]
   >([]);
@@ -2325,6 +2311,20 @@ function TabRelatorio({ token }: { token: string }) {
   }, [token, periodo]);
 
   useEffect(() => { fetchRelatorio(); }, [fetchRelatorio]);
+
+  // Indicadores ao vivo (movidos do Painel para não poluir o quadro operacional)
+  useEffect(() => {
+    let cancelled = false;
+    const fetchLive = async () => {
+      try {
+        const res = await fetch('/api/delivery/dashboard', { headers: hdrs });
+        if (res.ok && !cancelled) setLiveDash(await res.json());
+      } catch {}
+    };
+    fetchLive();
+    const iv = setInterval(fetchLive, 15000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [token]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2371,6 +2371,21 @@ function TabRelatorio({ token }: { token: string }) {
 
   return (
     <div className="space-y-5">
+      {/* Ao vivo (agora) — o que antes ficava no topo do Painel */}
+      {liveDash && (
+        <div>
+          <h3 className="mb-2 text-[11px] font-black uppercase tracking-wider text-fptext-muted">Agora (tempo real)</h3>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-6">
+            <DCard label="Pedidos Hoje"  value={String(liveDash.pedidos_hoje)}   color="blue"    icon={<Package size={16}/>} />
+            <DCard label="Faturamento"   value={fmt(liveDash.faturamento_hoje)}  color="emerald" icon={<DollarSign size={16}/>} />
+            <DCard label="Em Preparo"    value={String(liveDash.em_preparo)}     color="amber"   icon={<Clock size={16}/>} />
+            <DCard label="Em Rota"       value={String(liveDash.em_rota)}        color="orange"  icon={<Bike size={16}/>} />
+            <DCard label="Ticket Médio"  value={fmt(liveDash.ticket_medio)}      color="purple"  icon={<TrendingUp size={16}/>} />
+            <DCard label="Top Motoboy"   value={liveDash.top_motoboy ? `${liveDash.top_motoboy.nome.split(' ')[0]} (${liveDash.top_motoboy.entregas})` : '—'} color="zinc" icon={<User size={16}/>} />
+          </div>
+        </div>
+      )}
+
       {/* Filtro período */}
       <div className="flex gap-1.5">
         {periodos.map(p=>(
