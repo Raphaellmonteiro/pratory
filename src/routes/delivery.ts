@@ -1334,6 +1334,11 @@ router.get('/pedidos', async (req: Request, res) => {
       const { status, motoboy_id } = req.body;
       const nextStatus = String(status || '').trim();
       const requiresMotoboy = await tenantHasFeature(req.tenantId, 'funcionarios');
+      const clienteRow = await q1<{ delivery_config?: string | null }>(
+        'SELECT delivery_config FROM clientes WHERE id=?',
+        [req.tenantId]
+      );
+      const motoboySobDemanda = !!coerceDeliveryConfigRow(clienteRow?.delivery_config ?? null).motoboy_sob_demanda;
       const normalizedMotoboyId = motoboy_id == null || motoboy_id === ''
         ? null
         : Number(motoboy_id);
@@ -1357,6 +1362,7 @@ router.get('/pedidos', async (req: Request, res) => {
 
       if (
         requiresMotoboy &&
+        !motoboySobDemanda &&
         nextStatus === 'Saiu para Entrega' &&
         (!Number.isInteger(normalizedMotoboyId) || normalizedMotoboyId <= 0)
       ) {

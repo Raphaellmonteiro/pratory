@@ -151,6 +151,9 @@ type DeliveryConfig = {
   cardapio_banner_slots?: string[] | Record<string, string> | string;
   /** Dias da semana sem delivery (0=domingo … 6=sábado, mesmo critério de `Date#getDay`). */
   dias_folga_entrega?: number[];
+  /** Restaurante sem motoboy próprio: usa entregador avulso/por demanda. Quando true, o
+   *  checkout só libera Pix (sem troco/maquininha para o entregador levar). */
+  motoboy_sob_demanda?: boolean;
 };
 
 type DeliveryAddressRecord = {
@@ -1233,6 +1236,7 @@ export function createDeliveryPublicRouter() {
           cardapio_online_banner_urls: cardapioBannerSlots,
           cardapio_banner_slots: cardapioBannerSlots,
           dias_folga_entrega: diasFolgaCfg,
+          motoboy_sob_demanda: !!dcfg.motoboy_sob_demanda,
         },
         categorias,
       });
@@ -1801,6 +1805,15 @@ export function createDeliveryPublicRouter() {
       const prefix = `D${y}${m}${d}`;
 
       const pagamentoTipoCanon = normalizeDeliveryPublicPaymentMethod(pagamento_tipo);
+
+      if (canalPedido === 'delivery' && dcfg.motoboy_sob_demanda && pagamentoTipoCanon !== 'pix') {
+        return res.status(400).json({
+          success: false,
+          error: 'Este estabelecimento aceita apenas Pix para entregas no momento.',
+          code: 'DELIVERY_PAGAMENTO_SOMENTE_PIX',
+        });
+      }
+
       const pagamentoStatusInicial =
         pagamentoTipoCanon === 'pix' ? 'aguardando_confirmacao' : 'pendente';
 

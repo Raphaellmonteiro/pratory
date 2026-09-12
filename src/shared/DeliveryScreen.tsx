@@ -71,6 +71,11 @@ interface DeliveryConfig {
   modelo_entrega?: 'bairro_fixo';
   bairros_atendidos?: string; valor_por_entrega?: number;
   zonas_entrega?: Array<{ nome: string; taxa: number }>;
+  /** Restaurante sem motoboy próprio: usa entregador avulso/por demanda (ex.: 99Entregador).
+   *  Quando true, o checkout do cardápio online só libera pagamento via Pix (o motoqueiro
+   *  não leva maquininha nem troco) e o quadro do painel dispensa a seleção de motoboy
+   *  cadastrado ao despachar. */
+  motoboy_sob_demanda?: boolean;
   desconto_primeiro_cliente_ativo?: boolean;
   desconto_primeiro_cliente_tipo?: 'percentual'|'fixo'|'frete_gratis';
   desconto_primeiro_cliente_valor?: number;
@@ -515,6 +520,7 @@ function TabPainel({ token, hasMotoboyFeature = true }: { token: string; hasMoto
   const DELIVERY_POLLING_INTERVAL_MS = 10000;
   const [pedidos, setPedidos]           = useState<Pedido[]>([]);
   const [motoboys, setMotoboys]         = useState<Motoboy[]>([]);
+  const [motoboySobDemanda, setMotoboySobDemanda] = useState(false);
   const [loading, setLoading]           = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('ativos');
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null);
@@ -532,6 +538,16 @@ function TabPainel({ token, hasMotoboyFeature = true }: { token: string; hasMoto
   pedidosRef.current                    = pedidos;
   selectedPedidoRef.current             = selectedPedido;
   const hdrs = { Authorization: `Bearer ${token}` };
+
+  // Config "motoboy por demanda" — só precisa ser lida uma vez (não faz parte do polling de pedidos).
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/delivery/config', { headers: hdrs })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (!cancelled && d) setMotoboySobDemanda(!!d.motoboy_sob_demanda); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [token]);
 
   const fetchAll = useCallback(async () => {
     if (isFetchingRef.current) return;
@@ -704,7 +720,7 @@ function TabPainel({ token, hasMotoboyFeature = true }: { token: string; hasMoto
     const p = pedidos.find(x => x.id === id);
     if (!p) return;
     if (colunaPedidos(col).some(x => x.id === id)) return; // já está nessa coluna
-    if (col === 'Saiu para Entrega' && hasMotoboyFeature) {
+    if (col === 'Saiu para Entrega' && hasMotoboyFeature && !motoboySobDemanda) {
       if (motoboys.length === 0) {
         alert('Cadastre um motoboy antes de despachar este pedido.');
         return;
@@ -810,7 +826,7 @@ function TabPainel({ token, hasMotoboyFeature = true }: { token: string; hasMoto
                   {colPedidos.map(p => {
                     const pedidoCfg = STATUS_CFG[p.status] || STATUS_CFG['Criado'];
                     return (
-                      <PedidoCard key={p.id} pedido={p} motoboys={motoboys} requiresMotoboy={hasMotoboyFeature}
+                      <PedidoCard key={p.id} pedido={p} motoboys={motoboys} requiresMotoboy={hasMotoboyFeature && !motoboySobDemanda}
                         onDetail={() => setSelectedPedido(p)}
                         onAvancar={(mbId) => pedidoCfg.next && mudarStatus(p.id, pedidoCfg.next!, mbId)}
                         onReimprimir={() => reimprimir(p.id)}
@@ -1159,7 +1175,7 @@ function TabPainel({ token, hasMotoboyFeature = true }: { token: string; hasMoto
                 {(() => {
                   const cfg = STATUS_CFG[selectedPedido.status] || STATUS_CFG['Pedido Recebido'];
                   if (!cfg.next) return null;
-                  const precisaMotoboy = cfg.next === 'Saiu para Entrega' && hasMotoboyFeature;
+                  const precisaMotoboy = cfg.next === 'Saiu para Entrega' && hasMotoboyFeature && !motoboySobDemanda;
                   const bloqueado = precisaMotoboy && (!modalMotoboy || motoboys.length === 0);
                   return (
                     <div className="space-y-2">
@@ -3313,6 +3329,30 @@ export function DeliveryConfigPanel({
                   <input type="number" value={cfg.valor_por_entrega||''} onChange={e=>setCfg(c=>({...c,valor_por_entrega:parseFloat(e.target.value)||0}))}
                     placeholder="0" className="w-full px-3 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm focus:outline-none focus:border-zinc-400 dark:focus:border-zinc-600 text-fptext-primary"/>
                 </div>
+              </div>
+              <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-4 space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="font-bold text-zinc-800 dark:text-zinc-200">Motoboy por demanda (sem motoboy próprio)</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      Para quem chama entregador avulso (ex.: 99Entregador) em vez de ter motoboy cadastrado.
+                      Ao ativar: o checkout do cardápio online aceita <strong>somente Pix</strong> (o entregador
+                      leva a comida pronta, sem maquininha e sem troco), e o painel deixa de exigir seleção de
+                      um motoboy cadastrado para despachar.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setCfg(c=>({...c,motoboy_sob_demanda:!c.motoboy_sob_demanda}))}
+                    className={`w-12 h-6 shrink-0 rounded-full transition-all relative ${cfg.motoboy_sob_demanda?'bg-emerald-500':'bg-zinc-200'}`}
+                  >
+                    <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${cfg.motoboy_sob_demanda?'left-6':'left-0.5'}`}/>
+                  </button>
+                </div>
+                {cfg.motoboy_sob_demanda && (
+                  <div className="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2.5 text-xs text-amber-800 dark:text-amber-200">
+                    ⚠️ Com isso ativo, pedidos de delivery com pagamento em dinheiro ou cartão na entrega ficam bloqueados no cardápio online. Retirada no balcão não é afetada.
+                  </div>
+                )}
               </div>
               <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 p-4 space-y-2">
                 <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">Zonas (bairros e taxas)</p>

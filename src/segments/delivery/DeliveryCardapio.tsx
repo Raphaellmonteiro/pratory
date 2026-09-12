@@ -105,6 +105,8 @@ interface Config {
   cardapio_banner_slots?: string[];
   /** 0=domingo … 6=sábado. Eco do painel; aberto/fechado vem de `ativo` / `dia_folga_hoje`. */
   dias_folga_entrega?: number[];
+  /** Restaurante usa entregador por demanda (sem motoboy próprio): checkout aceita só Pix. */
+  motoboy_sob_demanda?: boolean;
 }
 interface CheckoutResumo {
   modelo_entrega: 'bairro_fixo';
@@ -4513,6 +4515,12 @@ function TelaCheckout({ slug, cart, config, assistido, cliToken, cliente, tipoAt
   const [novoEndereco, setNovoEndereco] = useState<DeliveryNovoEnderecoForm>(() => emptyDeliveryNovoEnderecoForm(true));
   const [modoRecebimento, setModoRecebimento] = useState<ModoRecebimentoPedido | null>(null);
   const [pag, setPag] = useState('pix');
+  /** Restaurante usa entregador por demanda (sem motoboy próprio): só aceita Pix na entrega.
+   *  Retirada no balcão não é afetada — o motoboy só entra na conta quando é delivery. */
+  const pagamentoSomentePix = !!config.motoboy_sob_demanda && tipoAtendimento === 'entrega';
+  useEffect(() => {
+    if (pagamentoSomentePix && pag !== 'pix') setPag('pix');
+  }, [pagamentoSomentePix, pag]);
   const [pixCheckoutCopiado, setPixCheckoutCopiado] = useState(false);
   /** Opcional: quem recebe no endereço (só entrega; vai para observation). */
   const [nomeQuemRecebe, setNomeQuemRecebe] = useState('');
@@ -5760,6 +5768,7 @@ const finalizar = async () => {
           )}
 
           {/* Dinheiro */}
+          {!pagamentoSomentePix && (
           <button onClick={()=>setPag('dinheiro')}
             className={pag==='dinheiro' ? cx.pixOptionOuterOn : cx.pixOptionOuter}>
             <div className={pag==='dinheiro' ? cx.pixOptionInnerOn : cx.pixOptionInner}>
@@ -5815,8 +5824,10 @@ const finalizar = async () => {
               </div>
             )}
           </button>
+          )}
 
           {/* Cartão */}
+          {!pagamentoSomentePix && (
           <button onClick={()=>setPag('cartao')}
             className={pag==='cartao' ? cx.cartaoRowOn : cx.cartaoRow}>
             <div className="flex items-center gap-3">
@@ -5832,6 +5843,19 @@ const finalizar = async () => {
               {pag==='cartao'&&<div className="w-2 h-2 rounded-full bg-white"/>}
             </div>
           </button>
+          )}
+
+          {pagamentoSomentePix && (
+            <div
+              className={
+                isLightCheckout
+                  ? 'rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-900'
+                  : 'rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2.5 text-xs leading-relaxed text-amber-100'
+              }
+            >
+              Esta loja aceita apenas <strong>Pix</strong> para pedidos de entrega no momento.
+            </div>
+          )}
 
           {modalStep === 2 && pag === 'dinheiro' && (
             <div
