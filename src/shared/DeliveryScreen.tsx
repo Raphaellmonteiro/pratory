@@ -199,6 +199,16 @@ function deliveryPedidoTemCustomizacaoItens(p: Pedido): boolean {
   return orderHasAnyItemCustomization({ items: p.itens as any });
 }
 
+// Exibição enxuta do número do pedido no card do quadro (ex.: "D260911-008" → "#008").
+// Puramente visual — só para o card do Kanban deste arquivo; não altera order_number
+// em si, então não afeta impressão, WhatsApp, rastreamento ou qualquer outro restaurante.
+function deliveryShortOrderNumber(orderNumber: string): string {
+  const raw = String(orderNumber || '').trim();
+  if (!raw) return '';
+  const lastPart = raw.includes('-') ? raw.slice(raw.lastIndexOf('-') + 1) : raw;
+  return `#${lastPart || raw}`;
+}
+
 function formatDeliveryItensResumoWhatsApp(p: Pedido): string {
   if (deliveryPedidoTemItensDetalhe(p)) {
     return p
@@ -1209,7 +1219,7 @@ function PedidoCard({ pedido, motoboys, requiresMotoboy = true, onDetail, onAvan
       title="Clique para ver os detalhes do pedido"
       className={`${adminOpsSurfaceCardClass} cursor-grab active:cursor-grabbing p-2.5 flex flex-col items-center justify-center gap-2 text-center transition-all hover:border-zinc-300 hover:shadow-md dark:hover:border-zinc-700 max-md:active:bg-zinc-50/80 dark:max-md:active:bg-zinc-800/40`}
     >
-      <p className="font-black text-fptext-primary text-sm leading-tight truncate w-full">#{pedido.order_number}</p>
+      <p className="font-black text-fptext-primary text-sm leading-tight truncate w-full" title={`#${pedido.order_number}`}>{deliveryShortOrderNumber(pedido.order_number)}</p>
       {cfg.next && (
         <div className="w-full space-y-1.5" onClick={(e) => e.stopPropagation()}>
           {cfg.next==='Saiu para Entrega' && requiresMotoboy && (
