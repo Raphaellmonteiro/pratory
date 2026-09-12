@@ -31,19 +31,6 @@ interface CashReport {
   credit: number;
 }
 
-interface CommercialInsight {
-  id: string;
-  title: string;
-  text: string;
-  severity: 'positive' | 'negative' | 'neutral';
-  actionHint?: string | null;
-}
-
-interface CommercialInsightsSnapshot {
-  date: string;
-  insights: CommercialInsight[];
-}
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmt = (v: number) => `R$ ${(v || 0).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`;
 
@@ -54,7 +41,6 @@ export default function DashboardScreen({
   const [stats, setStats]       = useState<Stats | null>(null);
   const [weeklyData, setWeeklyData] = useState<WeeklyDay[]>([]);
   const [cashReport, setCashReport] = useState<CashReport | null>(null);
-  const [commercialInsights, setCommercialInsights] = useState<CommercialInsightsSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -81,23 +67,21 @@ export default function DashboardScreen({
         q = `?year=${selectedYear}`;
       }
       const hdrs = { Authorization: `Bearer ${token}` };
-      const [sRes, wRes, cRes, iRes] = await Promise.all([
+      const [sRes, wRes, cRes] = await Promise.all([
         fetch(`/api/dashboard/stats${q}`, { headers: hdrs }),
         fetch('/api/dashboard/weekly', { headers: hdrs }),
         fetch(`/api/dashboard/cash-report${q}`, { headers: hdrs }),
-        fetch('/api/dashboard/commercial-insights', { headers: hdrs }),
       ]);
 
       // Parseia cada resposta individualmente — uma falha não derruba as demais
       const safeJson = async (r: Response) => {
         try { return r.ok ? await r.json() : null; } catch { return null; }
       };
-      const [s, w, c, i] = await Promise.all([safeJson(sRes), safeJson(wRes), safeJson(cRes), safeJson(iRes)]);
+      const [s, w, c] = await Promise.all([safeJson(sRes), safeJson(wRes), safeJson(cRes)]);
 
       if (s) setStats(s);
       if (Array.isArray(w)) setWeeklyData(w);
       if (c) setCashReport(c);
-      if (i && Array.isArray(i.insights)) setCommercialInsights(i);
     } catch (e) {
       console.error(e);
     } finally {
@@ -238,73 +222,6 @@ export default function DashboardScreen({
         </div>
 
         {/* ── Linha 2: Métodos + Top Produtos ────────────────────────────── */}
-        {commercialInsights?.insights?.length ? (
-          <div className={panelClass}>
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-black text-zinc-800 dark:text-zinc-200 uppercase tracking-wider flex items-center gap-2">
-                  <BarChart2 size={16} className="text-red-600 dark:text-red-400" />
-                  IA Comercial (Etapa 2)
-                </h2>
-                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                  Insights curtos + ação sugerida com base nos seus pedidos.
-                </p>
-              </div>
-              <div className="h-10 w-10 rounded-2xl bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400 flex items-center justify-center border border-red-100 dark:border-red-900/50">
-                <BarChart2 size={18} />
-              </div>
-            </div>
-
-            <div className="space-y-2.5 sm:space-y-3">
-              {commercialInsights.insights.slice(0, 6).map((ins) => {
-                const badgeCfg =
-                  ins.severity === 'positive'
-                    ? {
-                        label: 'Positivo',
-                        cls: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200',
-                      }
-                    : ins.severity === 'negative'
-                      ? {
-                          label: 'Atencao',
-                          cls: 'border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-200',
-                        }
-                      : {
-                          label: 'Neutro',
-                          cls: 'border-zinc-300 bg-white text-zinc-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-300',
-                        };
-
-                return (
-                  <div key={ins.id} className={`${softSurfaceClass} p-3 sm:p-3.5`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-xs font-black text-zinc-900 dark:text-zinc-100">
-                          {ins.title}
-                        </p>
-                        <p className="mt-1 text-[12px] leading-relaxed text-zinc-600 dark:text-zinc-300">
-                          {ins.text}
-                        </p>
-                        {ins.actionHint ? (
-                          <p className="mt-1.5 text-[11px] font-medium text-zinc-600 dark:text-zinc-300">
-                            Ação sugerida: {ins.actionHint}
-                          </p>
-                        ) : null}
-                      </div>
-                      <span
-                        className={[
-                          'shrink-0 inline-flex items-center rounded-full border px-2 py-1 text-[10px] font-bold uppercase tracking-wide',
-                          badgeCfg.cls,
-                        ].join(' ')}
-                      >
-                        {badgeCfg.label}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
 
           {/* Métodos de pagamento */}
