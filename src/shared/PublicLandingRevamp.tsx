@@ -47,55 +47,6 @@ const SOLUTIONS = [
   },
 ];
 
-const PLANS = [
-  {
-    id: 'pdv_essencial',
-    name: 'PDV Essencial',
-    price: 'R$ 149',
-    period: '/mês',
-    desc: 'Para quem vende no balcão e não precisa de delivery.',
-    highlight: false,
-    features: [
-      'PDV completo',
-      'Controle de pedidos',
-      'Impressão na cozinha',
-      'Mesas e comanda',
-      'Fechamento de caixa',
-    ],
-  },
-  {
-    id: 'delivery',
-    name: 'Delivery',
-    price: 'R$ 249',
-    period: '/mês',
-    desc: 'Para quem quer vender online e receber pelo Pix.',
-    highlight: true,
-    features: [
-      'Tudo do PDV Essencial',
-      'Cardápio online (link + QR Code)',
-      'Delivery próprio',
-      'Pix integrado',
-      'Rastreamento do pedido pelo cliente',
-      'Notificações automáticas via WhatsApp',
-    ],
-  },
-  {
-    id: 'completo',
-    name: 'Completo',
-    price: 'R$ 349',
-    period: '/mês',
-    desc: 'Gestão completa com estoque, relatórios e suporte prioritário.',
-    highlight: false,
-    features: [
-      'Tudo do Delivery',
-      'Controle de estoque',
-      'Relatórios e dashboard',
-      'Logs e auditoria',
-      'Suporte prioritário',
-    ],
-  },
-];
-
 type FormData = {
   nome: string;
   empresa: string;
@@ -308,7 +259,7 @@ export default function PublicLandingRevamp({
           <nav className="flex shrink-0 items-center gap-2 sm:gap-3">
             <button type="button" onClick={() => scrollToSection('lp-planos')}
               className="hidden rounded-xl px-4 py-2.5 text-sm font-semibold text-fptext-secondary transition-colors hover:bg-fp-hover sm:block">
-              Planos
+              Atendimento
             </button>
             <button type="button" onClick={goToLogin}
               className="rounded-xl border border-transparent px-4 py-2.5 text-sm font-semibold text-fptext-primary transition-colors hover:bg-fp-hover">
@@ -348,7 +299,7 @@ export default function PublicLandingRevamp({
               </button>
               <button type="button" onClick={() => scrollToSection('lp-planos')}
                 className="pratori-btn-secondary rounded-xl px-6 py-3.5 text-sm font-semibold shadow-[0_6px_18px_rgba(63,62,62,0.05)] transition-colors">
-                Ver planos e preços
+                Falar com a gente
               </button>
             </div>
             <p className="mt-8 max-w-2xl rounded-2xl border border-[#f6d9dc] bg-[#fff9fa] px-4 py-3.5 text-xs leading-relaxed text-fptext-secondary shadow-[0_8px_24px_rgba(63,62,62,0.04)] sm:px-5">
@@ -470,65 +421,28 @@ export default function PublicLandingRevamp({
         </div>
       </section>
 
-      {/* ── Planos ── */}
+      {/* ── Atendimento comercial (sem tabela de preços) ── */}
       <section id="lp-planos" className="border-t border-fp-border bg-fp-app py-14 sm:py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <h2 className="text-center text-[1.5rem] font-extrabold tracking-tight text-fptext-primary sm:text-[1.95rem]">
-            Planos e preços
+        <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
+          <p className="pratori-text-eyebrow text-[11px] font-bold uppercase">Planos</p>
+          <h2 className="mt-3 text-[1.5rem] font-extrabold tracking-tight text-fptext-primary sm:text-[1.95rem]">
+            Cada negócio tem uma necessidade diferente
           </h2>
-          <p className="mx-auto mt-3 max-w-xl text-center text-sm leading-relaxed text-fptext-secondary">
-            Sem taxas escondidas. Você escolhe o plano e pode trocar a qualquer momento.
+          <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-fptext-secondary">
+            Restaurante, hamburgueria, bar, adega ou delivery — cada operação funciona de um
+            jeito. Por isso montamos o plano ideal para o seu negócio conversando direto com
+            você, sem tabela fechada.
           </p>
-
-          <div className="mt-12 grid gap-6 sm:grid-cols-3">
-            {PLANS.map((plan) => (
-              <div key={plan.id}
-                className={`relative flex flex-col rounded-3xl border p-6 shadow-[0_18px_44px_rgba(63,62,62,0.08)] sm:p-7 ${
-                  plan.highlight
-                    ? 'border-[#EA1D2C] bg-fp-card ring-2 ring-[#EA1D2C]/20'
-                    : 'border-fp-border bg-fp-card'
-                }`}>
-                {plan.highlight && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                    <span className="rounded-full bg-[#EA1D2C] px-4 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-[0_8px_20px_rgba(234,29,44,0.3)]">
-                      Mais popular
-                    </span>
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm font-bold text-fptext-secondary">{plan.name}</p>
-                  <div className="mt-2 flex items-end gap-1">
-                    <span className="text-[2.2rem] font-extrabold leading-none tracking-tight text-fptext-primary">{plan.price}</span>
-                    <span className="mb-1 text-sm text-fptext-secondary">{plan.period}</span>
-                  </div>
-                  <p className="mt-2 text-sm leading-relaxed text-fptext-secondary">{plan.desc}</p>
-                </div>
-                <ul className="mt-6 flex-1 space-y-2.5">
-                  {plan.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2.5 text-sm text-fptext-primary">
-                      <span className="mt-0.5 h-4 w-4 shrink-0 rounded-full bg-[#EA1D2C]/10 text-center text-[10px] font-bold leading-4 text-[#EA1D2C]">✓</span>
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                <button type="button" onClick={() => openModal(plan.name)}
-                  className={`mt-8 w-full rounded-xl px-5 py-3.5 text-sm font-semibold transition-all hover:-translate-y-[1px] ${
-                    plan.highlight
-                      ? 'pratori-btn-primary shadow-[0_12px_28px_rgba(156,5,11,0.2)]'
-                      : 'pratori-btn-secondary'
-                  }`}>
-                  Quero este plano
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <p className="mt-8 text-center text-xs text-fptext-secondary">
-            Dúvidas sobre qual plano escolher?{' '}
-            <button type="button" onClick={goToWhatsApp} className="font-semibold text-[#EA1D2C] underline-offset-2 hover:underline">
-              Fale com a gente no WhatsApp
+          <div className="mt-9 flex flex-wrap items-center justify-center gap-3.5">
+            <button type="button" onClick={() => openModal('Atendimento personalizado')}
+              className="pratori-btn-primary rounded-xl px-6 py-3.5 text-sm font-semibold shadow-[0_12px_28px_rgba(156,5,11,0.2)] transition-all hover:-translate-y-[1px]">
+              Quero falar com a Pratory
             </button>
-          </p>
+            <button type="button" onClick={goToWhatsApp}
+              className="pratori-btn-secondary rounded-xl px-6 py-3.5 text-sm font-semibold transition-colors">
+              Falar no WhatsApp
+            </button>
+          </div>
         </div>
       </section>
 

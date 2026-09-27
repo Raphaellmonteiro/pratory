@@ -118,9 +118,9 @@ function getPublicMeta(path: string): PublicMeta {
   }
   if (path === '/') {
     return {
-      title: 'Pratory | Caixa, pedidos e delivery para sua loja',
+      title: 'Pratory | Gestão e tecnologia para alimentação',
       description:
-        'Sistema para restaurante e delivery: PDV, cozinha, cardápio online, mesas, retirada e caixa num lugar só.',
+        'Sistema completo (PDV, pedidos, mesas, cardápio online) e gestão de delivery no iFood, 99 e outros canais, em um só lugar.',
     };
   }
   if (path === '/privacidade') {

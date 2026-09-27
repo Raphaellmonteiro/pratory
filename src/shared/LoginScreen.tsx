@@ -18,6 +18,7 @@ interface LoginScreenProps {
 
 // ── Componente principal ─────────────────────────────────────────────────────
 export default function LoginScreen({ onLogin, onShowSolicitacao, onLicenseError }: LoginScreenProps) {
+  const [logoFailed, setLogoFailed] = useState(false);
   const [username, setUsername]     = useState('');
   const [password, setPassword]     = useState('');
   const [loading, setLoading]       = useState(false);
@@ -74,12 +75,23 @@ export default function LoginScreen({ onLogin, onShowSolicitacao, onLicenseError
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <div className="relative mb-4">
-            <img
-              src="/images/logopratory.jpeg"
-              alt="Pratory"
-              className="w-24 h-24 rounded-[28px] object-cover shadow-2xl
-                         ring-2 ring-[#EA1D2C]/30"
-            />
+            {logoFailed ? (
+              <div
+                className="w-24 h-24 rounded-[28px] shadow-2xl ring-2 ring-[#EA1D2C]/30
+                           bg-[#EA1D2C] flex items-center justify-center"
+                aria-label="Pratory"
+              >
+                <span className="text-white text-2xl font-black tracking-tight">P</span>
+              </div>
+            ) : (
+              <img
+                src="/images/logopratory.jpeg"
+                alt="Pratory"
+                onError={() => setLogoFailed(true)}
+                className="w-24 h-24 rounded-[28px] object-cover shadow-2xl
+                           ring-2 ring-[#EA1D2C]/30"
+              />
+            )}
             {/* brilho decorativo */}
             <div className="absolute -inset-1 rounded-[32px] bg-[#EA1D2C]/10 blur-xl -z-10" />
           </div>
