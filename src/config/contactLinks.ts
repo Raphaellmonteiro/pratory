@@ -9,11 +9,8 @@ export const WHATSAPP_NUMBER = '5582981831172';
 
 /**
  * Link do Instagram institucional da Pratory.
- * Ainda não informado — deixe vazio ('') até termos o link definitivo.
- * Enquanto estiver vazio, os botões de Instagram no front-end
- * podem ficar ocultos (ver INSTAGRAM_URL ? ... : null nos componentes).
  */
-export const INSTAGRAM_URL = '';
+export const INSTAGRAM_URL = 'https://www.instagram.com/pratoryfoodservice/';
 
 /**
  * Monta a URL do wa.me com o número comercial e uma mensagem
