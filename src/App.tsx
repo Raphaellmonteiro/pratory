@@ -33,6 +33,7 @@ import LegalAcceptanceGate   from './shared/legal/LegalAcceptanceGate';
 import ChunkLoadErrorBoundary from './shared/ChunkLoadErrorBoundary';
 
 const AdminPanel            = lazy(() => import('./shared/AdminPanel'));
+const PublicLandingRevamp   = lazy(() => import('./shared/PublicLandingRevamp'));
 const OrdersScreen          = lazy(() => import('./shared/OrdersScreen'));
 const CentralPedidosScreen  = lazy(() => import('./shared/CentralPedidosScreen'));
 const DashboardScreen       = lazy(() => import('./shared/DashboardScreen'));
@@ -994,19 +995,35 @@ const handleAuth = async (e: React.FormEvent) => {
   if (licenseError) return <LicenseBlockedScreen type={licenseError} onBack={() => { setLicenseError(null); handleLogout(); }} />;
 
   if (!token) {
+    // "/login" → tela de login (usuário/senha), sem conteúdo institucional.
+    // Qualquer outra rota pública (ex.: "/") → landing institucional da
+    // Pratory, com CTA levando o visitante para "/login" quando quiser entrar.
+    if (path === '/login') {
+      return (
+        <>
+          <LoginScreen
+            onLogin={(t) => {
+                setToken(t);
+                localStorage.setItem('token', t);
+                setLegalGateResolved(false);
+                setShowMenuHub(true);
+                try { setSlugAtual((JSON.parse(atob(t.split('.')[1])) as any).username || ''); } catch {}
+              }}
+            onShowSolicitacao={() => setShowSolicitacao(true)}
+            onLicenseError={(type) => setLicenseError(type)}
+          />
+          <Suspense fallback={null}>
+            <SolicitacaoModal isOpen={showSolicitacao} onClose={() => setShowSolicitacao(false)} />
+          </Suspense>
+        </>
+      );
+    }
+
     return (
       <>
-        <LoginScreen 
-          onLogin={(t) => {
-              setToken(t);
-              localStorage.setItem('token', t);
-              setLegalGateResolved(false);
-              setShowMenuHub(true);
-              try { setSlugAtual((JSON.parse(atob(t.split('.')[1])) as any).username || ''); } catch {}
-            }} 
-          onShowSolicitacao={() => setShowSolicitacao(true)}
-          onLicenseError={(type) => setLicenseError(type)}
-        />
+        <Suspense fallback={<PublicRouteFallback />}>
+          <PublicLandingRevamp onShowSolicitacao={() => setShowSolicitacao(true)} />
+        </Suspense>
         <Suspense fallback={null}>
           <SolicitacaoModal isOpen={showSolicitacao} onClose={() => setShowSolicitacao(false)} />
         </Suspense>
