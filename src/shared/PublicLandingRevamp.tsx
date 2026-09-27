@@ -1,50 +1,11 @@
 import React, { useState } from 'react';
-import { PUBLIC_SEGMENT_NOTE, PUBLIC_SEGMENT_OPTIONS } from '../config/publicSegments';
+import { PUBLIC_SEGMENT_OPTIONS } from '../config/publicSegments';
 import { WHATSAPP_NUMBER, INSTAGRAM_URL } from '../config/contactLinks';
 
 const HIGHLIGHTS = [
   'Sistema completo para PDV, mesas, cozinha e estoque',
   'Cardápio online com link ou QR Code para o cliente pedir',
   'Gestão profissional do seu delivery no iFood e 99',
-];
-
-const SOLUTIONS = [
-  {
-    id: 'sistema',
-    icon: '🧾',
-    title: 'Sistema Pratory',
-    desc: 'Sistema completo de gestão desenvolvido para negócios de alimentação.',
-    items: [
-      'PDV para balcão, mesa e para levar',
-      'Cozinha vê a fila de pedidos em tempo real',
-      'Mesas e comanda digital',
-      'Estoque e fechamento de caixa',
-    ],
-  },
-  {
-    id: 'delivery',
-    icon: '🛵',
-    title: 'Gestão de Delivery',
-    desc: 'Gestão estratégica para iFood, 99 e outros canais de delivery.',
-    items: [
-      'Preparação e organização da loja',
-      'Cardápio estruturado para os canais',
-      'Acompanhamento de desempenho',
-      'Estratégias comerciais',
-    ],
-  },
-  {
-    id: 'cardapio',
-    icon: '📱',
-    title: 'Cardápio Online',
-    desc: 'Cardápio intuitivo e digital para facilitar os pedidos e a experiência do cliente.',
-    items: [
-      'Link ou QR Code próprio',
-      'Pedido direto pelo celular',
-      'Pix integrado',
-      'Rastreamento do pedido pelo cliente',
-    ],
-  },
 ];
 
 type FormData = {
@@ -115,10 +76,6 @@ export default function PublicLandingRevamp({
     setModalOpen(true);
   };
 
-  const scrollToSection = (id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     if (name === 'cnpj') { setFormData(p => ({ ...p, cnpj: formatCnpj(value) })); return; }
@@ -150,8 +107,6 @@ export default function PublicLandingRevamp({
       window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${buildWhatsAppMsg(formData)}`, '_blank');
     }, 1400);
   };
-
-  const segmentLine = PUBLIC_SEGMENT_OPTIONS.map((s) => s.label).join(' · ');
 
   return (
     <div className="pratori-public-light min-h-screen bg-fp-app text-fptext-primary">
@@ -257,7 +212,7 @@ export default function PublicLandingRevamp({
             <p className="mt-0.5 text-xs font-medium tracking-wide text-fptext-secondary">Gestão e tecnologia para alimentação</p>
           </div>
           <nav className="flex shrink-0 items-center gap-2 sm:gap-3">
-            <button type="button" onClick={() => scrollToSection('lp-planos')}
+            <button type="button" onClick={goToWhatsApp}
               className="hidden rounded-xl px-4 py-2.5 text-sm font-semibold text-fptext-secondary transition-colors hover:bg-fp-hover sm:block">
               Atendimento
             </button>
@@ -297,7 +252,7 @@ export default function PublicLandingRevamp({
                 className="pratori-btn-primary rounded-xl px-6 py-3.5 text-sm font-semibold shadow-[0_14px_30px_rgba(156,5,11,0.2)] transition-all hover:-translate-y-[1px]">
                 Teste grátis por 7 dias
               </button>
-              <button type="button" onClick={() => scrollToSection('lp-planos')}
+              <button type="button" onClick={goToWhatsApp}
                 className="pratori-btn-secondary rounded-xl px-6 py-3.5 text-sm font-semibold shadow-[0_6px_18px_rgba(63,62,62,0.05)] transition-colors">
                 Falar com a gente
               </button>
@@ -338,195 +293,6 @@ export default function PublicLandingRevamp({
           </aside>
         </div>
       </main>
-
-      {/* ── Soluções ── */}
-      <section id="lp-modulos" className="border-t border-fp-border bg-[#FAFAFB] py-14 sm:py-16">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <h2 className="text-center text-[1.5rem] font-extrabold tracking-tight text-fptext-primary sm:text-[1.95rem]">
-            Duas frentes, uma só gestão
-          </h2>
-          <p className="mx-auto mt-3 max-w-2xl text-center text-sm leading-relaxed text-fptext-secondary">
-            Sistema próprio para operar o dia a dia e gestão profissional para vender mais nos canais de delivery.
-          </p>
-          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {SOLUTIONS.map((s) => (
-              <div key={s.id}
-                className="flex flex-col rounded-3xl border border-fp-border bg-fp-card p-6 shadow-[0_12px_28px_rgba(63,62,62,0.05)]">
-                <span className="text-2xl" aria-hidden>{s.icon}</span>
-                <h3 className="mt-4 text-lg font-bold tracking-tight text-fptext-primary">{s.title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-fptext-secondary">{s.desc}</p>
-                <ul className="mt-5 flex-1 space-y-2">
-                  {s.items.map((item) => (
-                    <li key={item} className="flex items-start gap-2 text-sm text-fptext-primary">
-                      <span className="mt-0.5 h-4 w-4 shrink-0 rounded-full bg-[#EA1D2C]/10 text-center text-[10px] font-bold leading-4 text-[#EA1D2C]">✓</span>
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-                <button type="button" onClick={() => openModal(s.id === 'delivery' ? 'Delivery' : 'PDV Essencial')}
-                  className="pratori-btn-secondary mt-6 w-full rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors">
-                  Quero conhecer
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Gestão de Delivery ── */}
-      <section id="lp-delivery" className="border-t border-fp-border bg-fp-app py-14 sm:py-16">
-        <div className="mx-auto grid max-w-6xl gap-8 px-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)] lg:items-center lg:gap-12">
-          <div>
-            <p className="pratori-text-eyebrow text-[11px] font-bold uppercase">iFood · 99 · outros canais</p>
-            <h2 className="mt-3 text-[1.5rem] font-extrabold tracking-tight text-fptext-primary sm:text-[1.95rem]">
-              Gestão profissional do seu delivery
-            </h2>
-            <p className="mt-4 max-w-xl text-sm leading-relaxed text-fptext-secondary sm:text-[0.98rem]">
-              A Pratory não só te dá acesso ao aplicativo — existe uma gestão por trás da sua operação nos canais de delivery, cuidando de cada detalhe para o seu negócio vender mais.
-            </p>
-            <ul className="mt-6 grid gap-3 sm:grid-cols-2">
-              {[
-                'Preparação e configuração da loja',
-                'Organização do cardápio nos canais',
-                'Acompanhamento da operação',
-                'Estratégias comerciais',
-              ].map((item) => (
-                <li key={item} className="flex items-start gap-2.5 rounded-2xl border border-fp-border bg-fp-card px-4 py-3 text-sm text-fptext-primary shadow-[0_8px_20px_rgba(63,62,62,0.04)]">
-                  <span className="mt-0.5 h-4 w-4 shrink-0 rounded-full bg-[#EA1D2C]/10 text-center text-[10px] font-bold leading-4 text-[#EA1D2C]">✓</span>
-                  {item}
-                </li>
-              ))}
-            </ul>
-            <button type="button" onClick={() => openModal('Delivery')}
-              className="pratori-btn-primary mt-7 rounded-xl px-6 py-3.5 text-sm font-semibold shadow-[0_12px_28px_rgba(156,5,11,0.2)] transition-all hover:-translate-y-[1px]">
-              Quero melhorar meu delivery
-            </button>
-          </div>
-          <div className="rounded-3xl border border-fp-border bg-fp-card p-6 shadow-[0_18px_44px_rgba(63,62,62,0.08)] sm:p-7">
-            <p className="text-sm font-semibold text-fptext-primary">Como funciona</p>
-            <ol className="mt-4 space-y-4">
-              {[
-                'Preparamos e organizamos sua loja nos canais',
-                'Estruturamos o cardápio para vender melhor',
-                'Acompanhamos os resultados da operação',
-                'Ajustamos a estratégia com você',
-              ].map((step, i) => (
-                <li key={step} className="flex items-start gap-3">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#EA1D2C] text-[11px] font-bold text-white">{i + 1}</span>
-                  <span className="text-sm leading-relaxed text-fptext-primary">{step}</span>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Atendimento comercial (sem tabela de preços) ── */}
-      <section id="lp-planos" className="border-t border-fp-border bg-fp-app py-14 sm:py-20">
-        <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
-          <p className="pratori-text-eyebrow text-[11px] font-bold uppercase">Planos</p>
-          <h2 className="mt-3 text-[1.5rem] font-extrabold tracking-tight text-fptext-primary sm:text-[1.95rem]">
-            Cada negócio tem uma necessidade diferente
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-fptext-secondary">
-            Restaurante, hamburgueria, bar, adega ou delivery — cada operação funciona de um
-            jeito. Por isso montamos o plano ideal para o seu negócio conversando direto com
-            você, sem tabela fechada.
-          </p>
-          <div className="mt-9 flex flex-wrap items-center justify-center gap-3.5">
-            <button type="button" onClick={() => openModal('Atendimento personalizado')}
-              className="pratori-btn-primary rounded-xl px-6 py-3.5 text-sm font-semibold shadow-[0_12px_28px_rgba(156,5,11,0.2)] transition-all hover:-translate-y-[1px]">
-              Quero falar com a Pratory
-            </button>
-            <button type="button" onClick={goToWhatsApp}
-              className="pratori-btn-secondary rounded-xl px-6 py-3.5 text-sm font-semibold transition-colors">
-              Falar no WhatsApp
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Resultados ── */}
-      <section id="lp-resultados" className="border-t border-fp-border bg-fp-app py-14 sm:py-16">
-        <div className="mx-auto max-w-5xl px-4 text-center sm:px-6">
-          <p className="pratori-text-eyebrow text-[11px] font-bold uppercase">Resultados</p>
-          <h2 className="mt-3 text-[1.5rem] font-extrabold tracking-tight text-fptext-primary sm:text-[1.95rem]">
-            O que a gestão de delivery já entregou
-          </h2>
-          <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-fptext-secondary">
-            Em breve, resultados reais de lojas que já são atendidas pela Pratory.
-          </p>
-          <div className="mt-10 grid gap-4 sm:grid-cols-3">
-            {['Pedidos', 'Faturamento', 'Crescimento'].map((label) => (
-              <div key={label}
-                className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-fp-border bg-fp-card px-6 py-10 shadow-[0_12px_28px_rgba(63,62,62,0.04)]">
-                <span className="text-2xl" aria-hidden>📊</span>
-                <p className="mt-3 text-sm font-semibold text-fptext-primary">{label}</p>
-                <p className="mt-1 text-xs text-fptext-secondary">Em breve</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Segmentos ── */}
-      <section id="lp-segmentos" className="border-t border-fp-border bg-[#FAFAFB] py-12 sm:py-14">
-        <div className="mx-auto max-w-5xl px-4">
-          <h2 className="text-xl font-bold tracking-tight text-fptext-primary sm:text-2xl">
-            Tipos de estabelecimento
-          </h2>
-          <p className="mt-4 text-sm leading-relaxed text-fptext-secondary">{segmentLine}</p>
-          <div className="pratori-card-soft mt-6 rounded-2xl p-4 sm:p-5">
-            <p className="text-sm font-semibold text-fptext-primary">Leia antes de contratar</p>
-            <p className="mt-2 text-sm leading-relaxed text-fptext-secondary">{PUBLIC_SEGMENT_NOTE}</p>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Atendimento ── */}
-      <section id="lp-atendimento" className="border-t border-fp-border bg-[#FAFAFB] py-14 sm:py-16">
-        <div className="mx-auto flex max-w-5xl flex-col items-center gap-4 px-4 text-center sm:px-6">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[#f2d6d9] bg-[#fff7f8] px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-[#a02331]">
-            <span className="h-2 w-2 rounded-full bg-[#EA1D2C]" aria-hidden />
-            Atendimento presencial
-          </div>
-          <h2 className="text-[1.5rem] font-extrabold tracking-tight text-fptext-primary sm:text-[1.95rem]">
-            Perto de você, em Maceió e Alagoas
-          </h2>
-          <p className="max-w-xl text-sm leading-relaxed text-fptext-secondary">
-            A Pratory não é só um sistema à distância. Temos atendimento presencial em Maceió e em todo o território alagoano, conforme disponibilidade, para acompanhar sua operação de perto.
-          </p>
-        </div>
-      </section>
-
-      {/* ── CTA final ── */}
-      <section className="pratori-cta-band py-12 sm:py-14">
-        <div className="mx-auto max-w-5xl px-4 text-center">
-          <div className="mx-auto max-w-2xl rounded-3xl border border-fp-border bg-fp-card px-5 py-8 shadow-[0_18px_44px_rgba(63,62,62,0.08)] sm:px-8">
-            <p className="pratori-text-eyebrow text-[11px] font-bold uppercase">Teste na sua loja</p>
-            <h2 className="mt-3 text-xl font-bold tracking-tight text-fptext-primary sm:text-2xl">
-              7 dias grátis, sem cartão
-            </h2>
-            <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-fptext-secondary">
-              Use na operação e veja se pedidos, cozinha e caixa ficam do jeito que você precisa.
-            </p>
-            <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <button type="button" onClick={() => openModal('Delivery')}
-                className="pratori-btn-primary rounded-xl px-5 py-3 text-sm font-semibold transition-colors">
-                Pedir teste
-              </button>
-              <button type="button" onClick={goToWhatsApp}
-                className="rounded-xl bg-[#25D366] px-5 py-3 text-sm font-semibold text-white transition-all hover:brightness-105">
-                💬 WhatsApp
-              </button>
-              <button type="button" onClick={goToLogin}
-                className="pratori-btn-secondary rounded-xl px-5 py-3 text-sm font-semibold transition-colors">
-                Já tenho login
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* ── Footer ── */}
       <footer className="border-t border-fp-border bg-fp-card py-8">
