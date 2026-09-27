@@ -311,7 +311,19 @@ export default function PublicLandingRevamp({
             <button type="button" onClick={() => openModal('Delivery')} className="font-medium underline-offset-4 hover:underline">Pedir teste</button>
             <button type="button" onClick={goToWhatsApp} className="font-medium text-[#25D366] underline-offset-4 hover:underline">WhatsApp</button>
             {INSTAGRAM_URL && (
-              <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" className="font-medium underline-offset-4 hover:underline">Instagram</a>
+              <a
+                href={INSTAGRAM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Instagram da Pratory"
+                className="inline-flex items-center justify-center rounded-full p-1.5 text-fptext-secondary transition-colors hover:bg-fp-hover hover:text-[#EA1D2C]"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <rect x="2" y="2" width="20" height="20" rx="5.5" stroke="currentColor" strokeWidth="2" />
+                  <circle cx="12" cy="12" r="4.3" stroke="currentColor" strokeWidth="2" />
+                  <circle cx="17.1" cy="6.9" r="1.1" fill="currentColor" />
+                </svg>
+              </a>
             )}
           </div>
         </div>
