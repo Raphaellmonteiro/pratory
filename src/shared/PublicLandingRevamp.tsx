@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { PUBLIC_SEGMENT_NOTE, PUBLIC_SEGMENT_OPTIONS } from '../config/publicSegments';
-
-const WHATSAPP_NUMBER = '5582981831172'; // TROQUE pelo seu número com DDI+DDD
+import { WHATSAPP_NUMBER } from '../config/contactLinks';
 
 const HIGHLIGHTS = [
   'Mesmo sistema para balcão, mesa, delivery e retirada',
@@ -65,17 +64,6 @@ const PLANS = [
       'Suporte prioritário',
     ],
   },
-];
-
-const SEGMENTOS = [
-  'Restaurante',
-  'Lanchonete',
-  'Hamburgueria',
-  'Pizzaria',
-  'Conveniência',
-  'Açaiteria',
-  'Padaria',
-  'Outro',
 ];
 
 type FormData = {
@@ -265,7 +253,7 @@ export default function PublicLandingRevamp({
                     <select name="segmento" value={formData.segmento} onChange={handleChange}
                       className="w-full rounded-xl border border-fp-border bg-fp-app px-4 py-2.5 text-sm text-fptext-primary focus:border-[#EA1D2C] focus:outline-none">
                       <option value="">Selecione o segmento</option>
-                      {SEGMENTOS.map(s => <option key={s} value={s}>{s}</option>)}
+                      {PUBLIC_SEGMENT_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                     </select>
                   </div>
 

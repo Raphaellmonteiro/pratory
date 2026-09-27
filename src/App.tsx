@@ -13,6 +13,7 @@ import type { Product, CaixaStatusApi, Order } from './types';
 import NavItem, { NavSectionLabel } from './components/ui/NavItem';
 import PlanBadge from './components/ui/PlanBadge';
 import { getSegCfg, getOperationalSegment } from './config/segmentos';
+import { WHATSAPP_NUMBER } from './config/contactLinks';
 import {
   getSafeFallbackPlanFeatures,
   isKnownPlanFeature,
@@ -1638,9 +1639,8 @@ const handleAuth = async (e: React.FormEvent) => {
 
 // --- SUB-COMPONENTES DE UI ---
 
-// Constante global para contato comercial
-const WA_NUMBER = '5500000000000';
-const WA_LINK = `https://wa.me/${WA_NUMBER}?text=Olá!%20Tenho%20interesse%20no%20Pratory`;
+// Constante global para contato comercial (fonte única em config/contactLinks.ts)
+const WA_LINK = `https://wa.me/${WHATSAPP_NUMBER}?text=Olá!%20Tenho%20interesse%20no%20Pratory`;
 
 function SegmentDisabledNotice() {
   return (

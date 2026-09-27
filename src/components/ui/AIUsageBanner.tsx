@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { WHATSAPP_NUMBER } from '../../config/contactLinks';
 
 const PIX_CODE = '00020126330014BR.GOV.BCB.PIX0111121043554355204000053039865802BR5925Ruy Raphaell Silva Montei6009SAO PAULO62140510phJM5ietZS63040573';
-
-const WHATSAPP_NUMBER = '5582981831172'; // número do suporte
 
 type Usage = { used: number; limit: number; reset_date: string } | null;
 type Pacote = { label: string; msgs: string; price: string; desc: string; destaque?: boolean };
