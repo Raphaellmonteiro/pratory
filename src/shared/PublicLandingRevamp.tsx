@@ -2,6 +2,12 @@ import React, { useState } from 'react';
 import { PUBLIC_SEGMENT_OPTIONS } from '../config/publicSegments';
 import { WHATSAPP_NUMBER, INSTAGRAM_URL } from '../config/contactLinks';
 
+const STOCK_PHOTOS = {
+  kitchen: 'https://images.pexels.com/photos/30120987/pexels-photo-30120987.jpeg?auto=compress&cs=tinysrgb&w=1400',
+  cardapio: 'https://images.pexels.com/photos/8753672/pexels-photo-8753672.jpeg?auto=compress&cs=tinysrgb&w=900',
+  delivery: 'https://images.pexels.com/photos/7362948/pexels-photo-7362948.jpeg?auto=compress&cs=tinysrgb&w=900',
+};
+
 const HIGHLIGHTS = [
   { icon: '🧾', label: 'PDV completo: mesas, cozinha e estoque' },
   { icon: '📱', label: 'Cardápio online por link ou QR Code' },
@@ -258,42 +264,112 @@ export default function PublicLandingRevamp({
                 Falar com a gente
               </button>
             </div>
-            <p className="mt-8 max-w-2xl rounded-2xl border border-[#f6d9dc] bg-[#fff9fa] px-4 py-3.5 text-xs leading-relaxed text-fptext-secondary shadow-[0_8px_24px_rgba(63,62,62,0.04)] sm:px-5">
-              Teste sem cartão · ajuda para começar · serve restaurante, lanchonete, bar e delivery.
-            </p>
+            <div className="mt-8 flex max-w-2xl flex-wrap gap-x-5 gap-y-2 rounded-2xl border border-[#f6d9dc] bg-[#fff9fa] px-4 py-3.5 text-xs font-medium leading-relaxed text-fptext-secondary shadow-[0_8px_24px_rgba(63,62,62,0.04)] sm:px-5">
+              <span>✓ Configuração feita junto com você</span>
+              <span>✓ Pix cai direto na sua conta</span>
+              <span>✓ Suporte via WhatsApp em Maceió</span>
+              <span>✓ Sem fidelidade</span>
+            </div>
           </section>
 
-          <aside className="relative overflow-hidden rounded-3xl border border-fp-border bg-fp-card p-6 shadow-[0_24px_60px_rgba(63,62,62,0.1)] sm:p-7">
-            <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-[#fff3f5]" aria-hidden />
-            <div className="relative">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[#f2d6d9] bg-[#fff7f8] px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-[#a02331]">
-                <span className="h-2 w-2 rounded-full bg-[#EA1D2C]" aria-hidden />
-                Pronto para usar hoje
-              </div>
-              <h2 className="mt-4 text-[1.35rem] font-extrabold leading-tight tracking-tight text-fptext-primary sm:text-[1.5rem]">
-                Sem fidelidade. Cancela quando quiser.
-              </h2>
-            </div>
-            <div className="mt-6 space-y-3.5">
-              {[
-                '✓  Configuração feita junto com você',
-                '✓  Cardápio online no seu link ou QR Code',
-                '✓  Pix cai direto na sua conta',
-                '✓  Suporte via WhatsApp em Maceió',
-              ].map((item) => (
-                <div key={item}
-                  className="rounded-2xl border border-fp-border bg-[#FAFAFB] px-4 py-3.5 text-sm font-medium leading-relaxed text-fptext-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
-                  {item}
+          <aside className="relative isolate overflow-hidden rounded-3xl shadow-[0_24px_60px_rgba(63,62,62,0.16)]">
+            <img
+              src={STOCK_PHOTOS.kitchen}
+              alt="Cozinha de restaurante em operação"
+              className="absolute inset-0 h-full w-full object-cover"
+              loading="lazy"
+            />
+            <div className="absolute inset-0 bg-gradient-to-br from-black/70 via-black/45 to-black/20" aria-hidden />
+
+            <div className="relative flex min-h-[380px] items-center justify-center p-6 sm:min-h-[440px] sm:p-8">
+              {/* Mockup tablet */}
+              <div className="w-[230px] rounded-[26px] bg-[#141414] p-2.5 shadow-[0_30px_60px_rgba(0,0,0,0.45)] sm:w-[260px]">
+                <div className="flex h-[290px] flex-col overflow-hidden rounded-[18px] bg-white sm:h-[320px]">
+                  <div className="flex h-8 shrink-0 items-center gap-1.5 bg-[#EA1D2C] px-3">
+                    <span className="text-[11px] font-extrabold text-white">Pratory</span>
+                  </div>
+                  <div className="flex flex-1">
+                    <div className="flex w-10 shrink-0 flex-col items-center gap-3 border-r border-[#F0F0F0] bg-[#FAFAFB] py-3">
+                      {[0, 1, 2, 3].map((i) => (
+                        <span key={i} className="h-4 w-4 rounded-md bg-[#E6E6E6]" aria-hidden />
+                      ))}
+                    </div>
+                    <div className="flex-1 space-y-2 p-2.5">
+                      {[0, 1, 2, 3, 4].map((i) => (
+                        <div key={i} className="flex items-center gap-2 rounded-lg bg-[#F5F5F5] p-1.5">
+                          <span className={`h-5 w-5 shrink-0 rounded-md ${i % 3 === 0 ? 'bg-[#BEEBD0]' : 'bg-[#E6E6E6]'}`} aria-hidden />
+                          <span className="h-2 flex-1 rounded-full bg-[#E0E0E0]" aria-hidden />
+                          <span className="h-2 w-6 shrink-0 rounded-full bg-[#EA1D2C]/30" aria-hidden />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              ))}
+              </div>
+
+              {/* Mockup celular, sobreposto */}
+              <div className="absolute bottom-6 right-6 w-[110px] rounded-[22px] bg-[#141414] p-1.5 shadow-[0_20px_40px_rgba(0,0,0,0.45)] sm:right-8 sm:w-[126px]">
+                <div className="flex h-[200px] flex-col overflow-hidden rounded-[16px] bg-white sm:h-[228px]">
+                  <div className="h-6 shrink-0 bg-[#EA1D2C]" aria-hidden />
+                  <div className="flex-1 space-y-2 p-2">
+                    {[0, 1, 2, 3].map((i) => (
+                      <div key={i} className="flex items-center gap-1.5 rounded-md bg-[#F5F5F5] p-1">
+                        <span className="h-5 w-5 shrink-0 rounded bg-[#E6E6E6]" aria-hidden />
+                        <div className="flex-1 space-y-1">
+                          <span className="block h-1.5 w-full rounded-full bg-[#E0E0E0]" aria-hidden />
+                          <span className="block h-1.5 w-2/3 rounded-full bg-[#EFEFEF]" aria-hidden />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
-            <button type="button" onClick={goToWhatsApp}
-              className="mt-7 w-full rounded-xl bg-[#25D366] px-5 py-3.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(37,211,102,0.25)] transition-all hover:-translate-y-[1px]">
-              💬 Falar no WhatsApp agora
-            </button>
+
+            <div className="absolute left-5 top-5 inline-flex items-center gap-2 rounded-full border border-white/25 bg-black/35 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white backdrop-blur">
+              <span className="h-2 w-2 rounded-full bg-[#4ADE80]" aria-hidden />
+              Pronto para usar hoje
+            </div>
           </aside>
         </div>
       </main>
+
+      {/* ── Destaques visuais ── */}
+      <section className="border-t border-fp-border bg-[#FAFAFB] py-14 sm:py-16">
+        <div className="mx-auto grid max-w-6xl gap-6 px-4 sm:grid-cols-3 sm:px-6">
+          {[
+            {
+              photo: STOCK_PHOTOS.kitchen,
+              alt: 'Balcão de restaurante em operação',
+              title: 'Controle Total',
+              desc: 'Gestão completa: mesas, cozinha e estoque em tempo real.',
+            },
+            {
+              photo: STOCK_PHOTOS.cardapio,
+              alt: 'Prato pronto para pedido no cardápio digital',
+              title: 'Cardápio Digital',
+              desc: 'Cardápio online personalizável, por link ou QR Code.',
+            },
+            {
+              photo: STOCK_PHOTOS.delivery,
+              alt: 'Entregador levando pedido de delivery',
+              title: 'Delivery Integrado',
+              desc: 'Pedidos do iFood, 99 e outros canais, tudo numa tela só.',
+            },
+          ].map((card) => (
+            <div key={card.title} className="overflow-hidden rounded-3xl border border-fp-border bg-fp-card shadow-[0_12px_28px_rgba(63,62,62,0.05)]">
+              <div className="relative aspect-[4/3]">
+                <img src={card.photo} alt={card.alt} className="h-full w-full object-cover" loading="lazy" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/0 to-black/0" aria-hidden />
+              </div>
+              <div className="p-5 sm:p-6">
+                <h3 className="text-lg font-bold tracking-tight text-fptext-primary">{card.title}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-fptext-secondary">{card.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* ── Footer ── */}
       <footer className="border-t border-fp-border bg-fp-card py-8">
