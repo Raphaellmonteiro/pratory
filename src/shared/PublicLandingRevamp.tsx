@@ -3,9 +3,9 @@ import { PUBLIC_SEGMENT_OPTIONS } from '../config/publicSegments';
 import { WHATSAPP_NUMBER, INSTAGRAM_URL } from '../config/contactLinks';
 
 const HIGHLIGHTS = [
-  'Sistema completo para PDV, mesas, cozinha e estoque',
-  'Cardápio online com link ou QR Code para o cliente pedir',
-  'Gestão profissional do seu delivery no iFood e 99',
+  { icon: '🧾', label: 'PDV completo: mesas, cozinha e estoque' },
+  { icon: '📱', label: 'Cardápio online por link ou QR Code' },
+  { icon: '🛵', label: 'Delivery gerenciado no iFood e 99' },
 ];
 
 type FormData = {
@@ -237,16 +237,17 @@ export default function PublicLandingRevamp({
               Sistema de gestão e <span className="pratori-mark font-black">gestão de delivery</span> para o seu negócio vender mais.
             </h1>
             <p className="mt-6 max-w-2xl text-pretty text-base leading-relaxed text-fptext-secondary sm:text-[1.08rem]">
-              A Pratory reúne o sistema para operar seu restaurante, bar ou delivery e uma equipe que cuida da sua loja no iFood, 99 e outros canais — tudo em um só lugar.
+              Tudo em um só lugar: sistema para sua loja, delivery gerenciado e cardápio online.
             </p>
-            <ul className="mt-10 space-y-4 text-sm leading-relaxed text-fptext-primary sm:text-[0.96rem]">
-              {HIGHLIGHTS.map((line) => (
-                <li key={line} className="flex gap-3.5 rounded-lg px-1 py-0.5">
-                  <span className="pratori-bullet mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full shadow-[0_0_0_4px_rgba(234,29,44,0.11)]" aria-hidden />
-                  <span>{line}</span>
-                </li>
+            <div className="mt-9 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {HIGHLIGHTS.map((h) => (
+                <div key={h.label}
+                  className="flex items-center gap-3 rounded-2xl border border-fp-border bg-fp-card px-4 py-3.5 shadow-[0_8px_20px_rgba(63,62,62,0.04)] sm:flex-col sm:items-start sm:gap-2.5 sm:px-5 sm:py-4">
+                  <span className="text-2xl" aria-hidden>{h.icon}</span>
+                  <span className="text-sm font-semibold leading-snug text-fptext-primary sm:text-[0.95rem]">{h.label}</span>
+                </div>
               ))}
-            </ul>
+            </div>
             <div className="mt-11 flex flex-wrap items-center gap-3.5">
               <button type="button" onClick={() => openModal('Delivery')}
                 className="pratori-btn-primary rounded-xl px-6 py-3.5 text-sm font-semibold shadow-[0_14px_30px_rgba(156,5,11,0.2)] transition-all hover:-translate-y-[1px]">
