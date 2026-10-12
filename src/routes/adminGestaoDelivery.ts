@@ -342,6 +342,17 @@ export function registerGestaoDeliveryRoutes(admin: Router) {
     res.json({ success: true });
   }));
 
+  // Planilha: todos os lançamentos de todos os restaurantes, juntos (a tela filtra no navegador).
+  admin.get('/gestao-delivery/lancamentos', handler(async (_req, res) => {
+    const rows = await qAll(
+      `SELECT ${LANC_COLS}, e.nome, e.tem_parceiro, e.parceiro_nome, e.ativo
+         FROM gd_lancamentos l JOIN gd_estabelecimentos e ON e.id = l.estabelecimento_id
+        ORDER BY l.semana_inicio DESC, LOWER(e.nome) LIMIT 3000`,
+      []
+    );
+    res.json(rows);
+  }));
+
   // Todas as semanas de um estabelecimento (usado para cobrar/baixar várias de uma vez).
   admin.get('/gestao-delivery/estabelecimentos/:id/lancamentos', handler(async (req, res) => {
     const id = z.coerce.number().int().positive().parse(req.params.id);

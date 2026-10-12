@@ -181,11 +181,11 @@ const Btn = ({ children, onClick, tone = 'ghost', disabled, title }: {
 
 /* ═════════════════════════ componente principal ═════════════════════════ */
 
-type SubTab = 'ganhos' | 'visao' | 'lancar' | 'cadastro';
+type SubTab = 'planilha' | 'ganhos' | 'visao' | 'lancar' | 'cadastro';
 
 export default function AdminGestaoDelivery({ token, onAuthError, secao = 'gestao' }: { token: string | null; onAuthError?: () => void; secao?: 'gestao' | 'clientes' }) {
   const api = useApi(token, onAuthError);
-  const [tab, setTab] = useState<SubTab>(secao === 'clientes' ? 'cadastro' : 'lancar');
+  const [tab, setTab] = useState<SubTab>(secao === 'clientes' ? 'cadastro' : 'planilha');
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [version, setVersion] = useState(0); // incrementa para recarregar tudo após uma mutação
   const bump = () => setVersion((v) => v + 1);
@@ -195,12 +195,11 @@ export default function AdminGestaoDelivery({ token, onAuthError, secao = 'gesta
   const fail = useCallback((e: unknown) => notify(e instanceof Error ? e.message : 'Erro inesperado.', false), [notify]);
 
   const todasAbas: { id: SubTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'lancar', label: 'Lançar semana', icon: <CalendarCheck size={15} /> },
-    { id: 'visao', label: 'Delivery · visão geral', icon: <TrendingUp size={15} /> },
-    { id: 'ganhos', label: 'Ganhos', icon: <Wallet size={15} /> },
-    { id: 'cadastro', label: 'Estabelecimentos', icon: <Building2 size={15} /> },
+    { id: 'planilha', label: 'Planilha', icon: <CalendarCheck size={15} /> },
+    { id: 'ganhos', label: 'Ganhos (software + delivery)', icon: <Wallet size={15} /> },
+    { id: 'cadastro', label: 'Restaurantes', icon: <Building2 size={15} /> },
   ];
-  // "Clientes Gestão Delivery" = só cadastro; "Gestão Delivery" = valores (planilha, visão geral e ganhos)
+  // "Clientes Gestão Delivery" = só cadastro; "Gestão Delivery" = planilha + ganhos
   const tabs = todasAbas.filter((t) => (secao === 'clientes' ? t.id === 'cadastro' : t.id !== 'cadastro'));
 
   return (
@@ -217,6 +216,7 @@ export default function AdminGestaoDelivery({ token, onAuthError, secao = 'gesta
 
       {tab === 'ganhos' && <GanhosView api={api} version={version} notify={notify} fail={fail} bump={bump} />}
       {tab === 'visao' && <VisaoGeral api={api} version={version} notify={notify} fail={fail} bump={bump} goLancar={() => setTab('lancar')} />}
+      {tab === 'planilha' && <Planilha api={api} version={version} notify={notify} fail={fail} bump={bump} />}
       {tab === 'lancar' && <LancarSemana api={api} version={version} notify={notify} fail={fail} bump={bump} />}
       {tab === 'cadastro' && <Cadastro api={api} version={version} notify={notify} fail={fail} bump={bump} />}
 
@@ -696,6 +696,311 @@ function LancarSemana({ api, version, notify, fail, bump }: Shared) {
         </div>
       )}
       <p className="text-center text-[11px] text-[#a6a29f]">Os valores salvam sozinhos ao sair do campo (ou Enter). A taxa usada é a do momento do primeiro lançamento da semana.</p>
+    </div>
+  );
+}
+
+/* ═════════════════════════ PLANILHA (tudo junto, com filtros) ═════════════════════════ */
+
+type LancRow = Lancamento & { nome: string; tem_parceiro: boolean; parceiro_nome: string | null; ativo: boolean };
+/** Uma linha = um restaurante em uma semana (como a planilha). `l` é null enquanto a semana não foi lançada. */
+type Linha = { key: string; est: Estabelecimento | null; estId: number; nome: string; ini: string; fim: string; l: LancRow | null };
+
+const cellInput =
+  'w-[88px] rounded-lg border border-[#e5e5e7] bg-[#ffffff] px-2 py-1.5 text-right text-xs tabular-nums text-[#3f3e3e] placeholder:text-[#c4c0bd] focus:border-[#ea1d2c] focus:outline-none focus:ring-2 focus:ring-[#ea1d2c]/20 disabled:cursor-not-allowed disabled:bg-[#f7f7f8] disabled:text-[#7c7875]';
+const selectCls =
+  'rounded-lg border border-[#e5e5e7] bg-[#ffffff] px-2 py-1.5 text-xs font-bold text-[#3f3e3e] focus:border-[#ea1d2c] focus:outline-none focus:ring-2 focus:ring-[#ea1d2c]/20';
+
+function Planilha({ api, version, notify, fail }: Shared) {
+  const [ests, setEsts] = useState<Estabelecimento[] | null>(null);
+  const [lancs, setLancs] = useState<LancRow[] | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [saving, setSaving] = useState<string | null>(null);
+  const [sel, setSel] = useState<Set<number>>(new Set());
+  const [busca, setBusca] = useState('');
+  const [estId, setEstId] = useState('');
+  const [status, setStatus] = useState('');
+  const [periodo, setPeriodo] = useState('todos');
+
+  const load = useCallback(() => {
+    Promise.all([
+      api<Estabelecimento[]>('GET', '/gestao-delivery/estabelecimentos'),
+      api<LancRow[]>('GET', '/gestao-delivery/lancamentos'),
+    ]).then(([e, l]) => { setEsts(e); setLancs(l); setDrafts({}); setSel(new Set()); }).catch(fail);
+  }, [api, fail]);
+  useEffect(() => { load(); }, [load, version]);
+
+  const hoje = isoToday();
+  const semAtual = weekStart(hoje);
+
+  const linhas = useMemo<Linha[]>(() => {
+    if (!ests || !lancs) return [];
+    const byId = new Map(ests.map((e) => [e.id, e] as const));
+    const map = new Map<string, Linha>();
+    lancs.forEach((l) => {
+      const key = `${l.estabelecimento_id}|${l.semana_inicio}`;
+      map.set(key, { key, est: byId.get(l.estabelecimento_id) ?? null, estId: l.estabelecimento_id, nome: l.nome, ini: l.semana_inicio, fim: l.semana_fim, l });
+    });
+    // Semana atual e anterior já aparecem prontas para preencher (restaurantes ativos).
+    ests.filter((e) => e.ativo).forEach((e) => [semAtual, addDays(semAtual, -7)].forEach((s) => {
+      const key = `${e.id}|${s}`;
+      if (map.has(key) || (e.inicio_em && addDays(s, 6) < e.inicio_em.slice(0, 10))) return;
+      map.set(key, { key, est: e, estId: e.id, nome: e.nome, ini: s, fim: addDays(s, 6), l: null });
+    }));
+    return [...map.values()].sort((a, b) => b.ini.localeCompare(a.ini) || a.nome.localeCompare(b.nome, 'pt-BR'));
+  }, [ests, lancs, semAtual]);
+
+  const mesIni = `${hoje.slice(0, 7)}-01`;
+  const mesPassadoIni = (() => { const d = new Date(`${mesIni}T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() - 1); return d.toISOString().slice(0, 10); })();
+  const noPeriodo = (r: Linha) => {
+    switch (periodo) {
+      case 'mes': return r.fim >= mesIni;
+      case 'mes_passado': return r.fim >= mesPassadoIni && r.ini < mesIni;
+      case '90d': return r.fim >= addDays(hoje, -90);
+      case 'ano': return r.fim >= `${hoje.slice(0, 4)}-01-01`;
+      default: return true;
+    }
+  };
+  const filtradas = useMemo(() => linhas.filter((r) => {
+    if (estId && r.estId !== Number(estId)) return false;
+    if (busca && !r.nome.toLowerCase().includes(busca.trim().toLowerCase())) return false;
+    if (!noPeriodo(r)) return false;
+    const st = r.l?.status ?? 'sem_lancamento';
+    if (status === 'repasse_pendente') return !!r.l && r.l.repasse > 0 && r.l.status === 'pago' && !r.l.repasse_pago;
+    if (status && st !== status) return false;
+    return true;
+  }), [linhas, estId, busca, status, periodo, hoje]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const tot = useMemo(() => {
+    const t = { base: 0, comissao: 0, repasse: 0, meu: 0, recebido: 0, aReceber: 0, repassePend: 0 };
+    filtradas.forEach(({ l }) => {
+      if (!l) return;
+      t.base += l.base; t.comissao += l.comissao; t.repasse += l.repasse; t.meu += l.meu;
+      if (l.status === 'pago') { t.recebido += l.meu; if (l.repasse > 0 && !l.repasse_pago) t.repassePend += l.repasse; }
+      else t.aReceber += l.meu;
+    });
+    return { base: r2(t.base), comissao: r2(t.comissao), repasse: r2(t.repasse), meu: r2(t.meu), recebido: r2(t.recebido), aReceber: r2(t.aReceber), repassePend: r2(t.repassePend) };
+  }, [filtradas]);
+
+  const valores = (r: Linha): Draft =>
+    drafts[r.key] ?? { v99: numToInput(r.l?.valor_99food ?? 0), vif: numToInput(r.l?.valor_ifood ?? 0), vout: numToInput(r.l?.valor_outros ?? 0) };
+  const taxa = (r: Linha) => ({ pm: r.l ? r.l.pct_meu_snap : r.est?.pct_meu ?? 0, pp: r.l ? r.l.pct_parceiro_snap : r.est?.pct_parceiro ?? 0 });
+  const limparDraft = (key: string) => setDrafts((p) => { const n = { ...p }; delete n[key]; return n; });
+
+  const salvar = async (r: Linha) => {
+    const d = drafts[r.key]; if (!d) return;
+    const [a, b, c] = [num(d.v99), num(d.vif), num(d.vout)];
+    const cur = r.l;
+    const igual = cur ? cur.valor_99food === a && cur.valor_ifood === b && cur.valor_outros === c : !a && !b && !c;
+    if (igual) return limparDraft(r.key);
+    setSaving(r.key);
+    try {
+      const res = await api<{ lancamento: Lancamento }>('PUT', '/gestao-delivery/lancamentos',
+        { estabelecimento_id: r.estId, semana_inicio: r.ini, valor_99food: a, valor_ifood: b, valor_outros: c });
+      const novo: LancRow = { ...res.lancamento, nome: r.nome, tem_parceiro: r.est?.tem_parceiro ?? false, parceiro_nome: r.est?.parceiro_nome ?? null, ativo: r.est?.ativo ?? true };
+      setLancs((p) => p && [...p.filter((x) => x.id !== novo.id), novo]);
+      limparDraft(r.key);
+    } catch (e) { fail(e); } finally { setSaving(null); }
+  };
+  const patch = async (l: LancRow, body: Record<string, unknown>) => {
+    try { await api('PATCH', `/gestao-delivery/lancamentos/${l.id}`, body); load(); } catch (e) { fail(e); }
+  };
+  const remover = async (r: Linha) => {
+    if (!r.l || !window.confirm(`Excluir o lançamento de ${r.nome} (${weekLabel(r.ini, r.fim)})?`)) return;
+    try { await api('DELETE', `/gestao-delivery/lancamentos/${r.l.id}`); load(); } catch (e) { fail(e); }
+  };
+
+  const selecionaveis = filtradas.filter((r) => r.l && r.l.status !== 'pago');
+  const selRows = filtradas.filter((r) => r.l && sel.has(r.l.id));
+  const totalSel = r2(selRows.reduce((s, r) => s + (r.l?.meu ?? 0), 0));
+  const toggle = (id: number, on: boolean) => setSel((p) => { const n = new Set(p); on ? n.add(id) : n.delete(id); return n; });
+
+  const pagarSel = async () => {
+    try { await api('POST', '/gestao-delivery/lancamentos/pagar-lote', { ids: [...sel] }); notify(`${sel.size} semana(s) marcadas como pagas.`); load(); } catch (e) { fail(e); }
+  };
+  const fecharSel = async () => {
+    const ids = selRows.filter((r) => r.l!.status === 'em_andamento').map((r) => r.l!.id);
+    if (!ids.length) return notify('Nenhuma das selecionadas está em andamento.', false);
+    try { await Promise.all(ids.map((id) => api('PATCH', `/gestao-delivery/lancamentos/${id}`, { status: 'aguardando' }))); notify(`${ids.length} semana(s) fechadas para cobrança.`); load(); } catch (e) { fail(e); }
+  };
+  const cobranca = () => {
+    const porEst = new Map<number, Linha[]>();
+    selRows.forEach((r) => porEst.set(r.estId, [...(porEst.get(r.estId) ?? []), r]));
+    const msgs = [...porEst.values()].map((rs) => {
+      const est = rs[0].est;
+      const total = rs.reduce((s, r) => s + (r.l?.comissao ?? 0), 0);
+      return [`Olá${est?.responsavel ? `, ${est.responsavel.split(' ')[0]}` : ''}! Segue o fechamento da gestão do delivery (${rs[0].nome}):`, '',
+        ...rs.map((r) => `• ${weekLabel(r.ini, r.fim)}: líquido ${brl(r.l!.base)} → comissão ${brl(r.l!.comissao)}`),
+        '', `Total a pagar: ${brl(total)}`, est?.pix_chave ? `PIX: ${est.pix_chave}` : '', 'Obrigado!'].filter((x, i, a) => x !== '' || a[i - 1] !== '').join('\n');
+    });
+    Promise.resolve(navigator.clipboard?.writeText(msgs.join('\n\n————————\n\n'))).then(() => notify('Cobrança copiada. É só colar no WhatsApp.'));
+    const unico = porEst.size === 1 ? [...porEst.values()][0][0].est : null;
+    if (unico?.whatsapp) window.open(`https://wa.me/55${unico.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(msgs[0])}`, '_blank');
+  };
+
+  if (!ests || !lancs) return <Loading />;
+  if (ests.length === 0) {
+    return <Card className="p-8 text-center text-sm text-[#7c7875]">Cadastre um restaurante em “Clientes Gestão Delivery” para começar.</Card>;
+  }
+  const filtrosAtivos = !!(busca || estId || status || periodo !== 'todos');
+  const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); };
+  const th = 'whitespace-nowrap px-2 py-2.5 text-[11px] font-bold uppercase tracking-wider text-[#7c7875]';
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <Kpi tone="main" label="Meu líquido" value={brl(tot.meu)} hint="no filtro atual" icon={<Coins size={16} />} />
+        <Kpi label="Recebido" value={brl(tot.recebido)} tone="good" hint="semanas pagas" icon={<BadgeCheck size={16} />} />
+        <Kpi label="A receber" value={brl(tot.aReceber)} tone="warn" hint="em andamento + aguardando" icon={<Clock size={16} />} />
+        <Kpi label="Gerenciado" value={brl(tot.base)} hint={`comissão bruta ${brl(tot.comissao)}`} icon={<TrendingUp size={16} />} />
+        <Kpi label="Repasse parceiros" value={brl(tot.repasse)} hint={tot.repassePend ? `${brl(tot.repassePend)} pendente` : 'nada pendente'} icon={<HandCoins size={16} />} />
+      </div>
+
+      <Card className="p-3 sm:p-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <label className="lg:col-span-2"><span className={fieldLabelClass}>Buscar restaurante</span>
+            <input className={fieldInputClass} placeholder="Nome…" value={busca} onChange={(e) => setBusca(e.target.value)} /></label>
+          <label><span className={fieldLabelClass}>Restaurante</span>
+            <select className={fieldInputClass} value={estId} onChange={(e) => setEstId(e.target.value)}>
+              <option value="">Todos</option>
+              {ests.map((e) => <option key={e.id} value={e.id}>{e.nome}{e.ativo ? '' : ' (inativo)'}</option>)}
+            </select></label>
+          <label><span className={fieldLabelClass}>Status</span>
+            <select className={fieldInputClass} value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="">Todos</option>
+              <option value="sem_lancamento">A preencher (sem lançamento)</option>
+              <option value="em_andamento">Em andamento</option>
+              <option value="aguardando">Aguardando pagamento</option>
+              <option value="pago">Pago</option>
+              <option value="repasse_pendente">Repasse ao parceiro pendente</option>
+            </select></label>
+          <label><span className={fieldLabelClass}>Período</span>
+            <select className={fieldInputClass} value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
+              <option value="todos">Tudo</option>
+              <option value="mes">Este mês</option>
+              <option value="mes_passado">Mês passado</option>
+              <option value="90d">Últimos 90 dias</option>
+              <option value="ano">Este ano</option>
+            </select></label>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[#7c7875]">
+          <span>{filtradas.length} linha(s)</span>
+          {filtrosAtivos && <button type="button" className="font-bold text-[#ea1d2c] hover:underline" onClick={() => { setBusca(''); setEstId(''); setStatus(''); setPeriodo('todos'); }}>Limpar filtros</button>}
+          <span className="ml-auto">Digite os valores direto na linha — salva sozinho ao sair do campo (ou Enter).</span>
+        </div>
+      </Card>
+
+      {selRows.length > 0 && (
+        <Card className="flex flex-wrap items-center gap-2 !border-[#ea1d2c]/40 !bg-[#fff5f6] p-3">
+          <b className="text-sm text-[#3f3e3e]">{selRows.length} selecionada(s) · meu líquido {brl(totalSel)}</b>
+          <div className="ml-auto flex flex-wrap gap-2">
+            <Btn onClick={cobranca}><ClipboardCopy size={14} />Gerar cobrança</Btn>
+            <Btn onClick={fecharSel}><Clock size={14} />Fechar e cobrar</Btn>
+            <Btn tone="primary" onClick={pagarSel}><BadgeCheck size={14} />Marcar como pagas</Btn>
+          </div>
+        </Card>
+      )}
+
+      <Card>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1120px] border-collapse text-xs">
+            <tbody>
+              <tr className="border-b border-[#e5e5e7] bg-[#f7f7f8] text-left">
+                <th className="w-8 px-2 py-2.5">
+                  <input className="accent-[#ea1d2c]" type="checkbox" aria-label="Selecionar todas"
+                    checked={selecionaveis.length > 0 && selecionaveis.every((r) => sel.has(r.l!.id))}
+                    onChange={(e) => setSel(e.target.checked ? new Set(selecionaveis.map((r) => r.l!.id)) : new Set())} />
+                </th>
+                <th className={th}>Semana</th><th className={th}>Restaurante</th>
+                <th className={`${th} text-right`}>99Food</th><th className={`${th} text-right`}>iFood</th><th className={`${th} text-right`}>Outros</th>
+                <th className={`${th} text-right`}>Total dono</th><th className={`${th} text-right`}>Comissão</th>
+                <th className={`${th} text-right`}>Parceiro</th><th className={`${th} text-right`}>Meu líquido</th>
+                <th className={th}>Status</th><th className="w-8" />
+              </tr>
+            </tbody>
+            <tbody>
+              {filtradas.length === 0 && (
+                <tr><td colSpan={12} className="p-8 text-center text-sm text-[#7c7875]">Nada neste filtro.</td></tr>
+              )}
+              {filtradas.map((r, idx) => {
+                const l = r.l;
+                const d = valores(r);
+                const { pm, pp } = taxa(r);
+                const c = calc(num(d.v99), num(d.vif), num(d.vout), pm, pp);
+                const locked = l?.status === 'pago';
+                const apps = r.est?.apps ?? ['99food', 'ifood', 'outros'];
+                const set = (k: keyof Draft, v: string) => setDrafts((p) => ({ ...p, [r.key]: { ...valores(r), [k]: v } }));
+                const campo = (app: string, k: keyof Draft, ph: string) => apps.includes(app)
+                  ? <input className={cellInput} inputMode="decimal" placeholder={ph} disabled={locked} value={d[k]}
+                      onChange={(e) => set(k, e.target.value)} onBlur={() => salvar(r)} onKeyDown={onKey} />
+                  : <span className="text-[#c4c0bd]">—</span>;
+                const novaSemana = idx > 0 && filtradas[idx - 1].ini !== r.ini;
+                return (
+                  <tr key={r.key} className={`${novaSemana ? 'border-t-2 border-t-[#e5e5e7]' : 'border-t border-t-[#f1f1f3]'} ${l ? '' : 'bg-[#fffaf0]'} hover:bg-[#fafafa]`}>
+                    <td className="px-2 py-2">
+                      {l && <input className="accent-[#ea1d2c]" type="checkbox" disabled={locked} checked={sel.has(l.id)} aria-label="Selecionar linha" onChange={(e) => toggle(l.id, e.target.checked)} />}
+                    </td>
+                    <td className="whitespace-nowrap px-2 py-2 font-bold text-[#3f3e3e]">{weekLabel(r.ini, r.fim)}<span className="font-normal text-[#a6a29f]">/{r.ini.slice(2, 4)}</span></td>
+                    <td className="px-2 py-2">
+                      <span className="font-bold text-[#3f3e3e]">{r.nome}</span>
+                      {r.est && !r.est.ativo && <span className="ml-1 text-[10px] text-[#a6a29f]">(inativo)</span>}
+                      {saving === r.key && <Loader2 size={12} className="ml-1 inline animate-spin text-[#7c7875]" />}
+                    </td>
+                    <td className="px-2 py-1.5 text-right">{campo('99food', 'v99', '0,00')}</td>
+                    <td className="px-2 py-1.5 text-right">{campo('ifood', 'vif', '0,00')}</td>
+                    <td className="px-2 py-1.5 text-right">{campo('outros', 'vout', '0,00')}</td>
+                    <td className="px-2 py-2 text-right tabular-nums text-[#3f3e3e]">{c.base ? brl(c.base) : <span className="text-[#c4c0bd]">—</span>}</td>
+                    <td className="px-2 py-2 text-right tabular-nums text-[#3f3e3e]">
+                      {c.base ? brl(c.comissao) : <span className="text-[#c4c0bd]">—</span>}
+                      <span className="block text-[10px] text-[#a6a29f]">{pctFmt(pm + pp)}</span>
+                    </td>
+                    <td className="px-2 py-2 text-right tabular-nums text-[#6f6b68]">
+                      {c.repasse > 0 ? (
+                        <>
+                          {brl(c.repasse)}
+                          {l && l.status !== 'em_andamento' && (
+                            <label className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-[#4f4c4a]">
+                              <input className="accent-[#ea1d2c]" type="checkbox" checked={l.repasse_pago} onChange={(e) => patch(l, { repasse_pago: e.target.checked })} />
+                              {l.repasse_pago ? 'repassado' : 'repassar'}
+                            </label>
+                          )}
+                        </>
+                      ) : <span className="text-[#c4c0bd]">—</span>}
+                    </td>
+                    <td className="px-2 py-2 text-right text-sm font-black tabular-nums text-[#15803d]">{c.base ? brl(c.meu) : <span className="font-normal text-[#c4c0bd]">—</span>}</td>
+                    <td className="px-2 py-1.5">
+                      {l ? (
+                        <>
+                          <select className={selectCls} value={l.status} onChange={(e) => patch(l, { status: e.target.value })}>
+                            <option value="em_andamento">Em andamento</option>
+                            <option value="aguardando">Aguardando pgto.</option>
+                            <option value="pago">Pago</option>
+                          </select>
+                          {l.data_pagamento && l.status === 'pago' && <span className="mt-0.5 block text-[10px] text-[#7c7875]">em {fmtDate(l.data_pagamento)}</span>}
+                        </>
+                      ) : <StatusChip s="sem_lancamento" />}
+                    </td>
+                    <td className="px-1 py-2">
+                      {l && !locked && <button type="button" title="Excluir lançamento" aria-label="Excluir lançamento" className="rounded-lg p-1.5 text-[#a6a29f] hover:bg-[#fdecee] hover:text-[#a02331]" onClick={() => remover(r)}><Trash2 size={14} /></button>}
+                    </td>
+                  </tr>
+                );
+              })}
+              {filtradas.length > 0 && (
+                <tr className="border-t-2 border-t-[#e5e5e7] bg-[#f7f7f8] font-black text-[#3f3e3e]">
+                  <td colSpan={6} className="px-2 py-2.5 text-right text-[11px] uppercase tracking-wider text-[#7c7875]">Total do filtro</td>
+                  <td className="px-2 py-2.5 text-right tabular-nums">{brl(tot.base)}</td>
+                  <td className="px-2 py-2.5 text-right tabular-nums">{brl(tot.comissao)}</td>
+                  <td className="px-2 py-2.5 text-right tabular-nums">{brl(tot.repasse)}</td>
+                  <td className="px-2 py-2.5 text-right tabular-nums text-[#15803d]">{brl(tot.meu)}</td>
+                  <td colSpan={2} />
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+      <p className="text-center text-[11px] text-[#a6a29f]">Linhas em amarelo ainda não têm valores. A taxa de cada semana fica congelada no primeiro lançamento: mudar a % do restaurante depois não altera semanas já lançadas.</p>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import fs from 'fs';
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { q1, qAll, qRun, qInsert, withTx, txInsert, txRun, txQ1 } from '../db';
+import { q1, qAll, qRun, qInsert, withTx, txInsert, txRun, txQ1, txQAll } from '../db';
 import {
   loginRateLimiter,
   authenticateToken,
@@ -744,9 +744,40 @@ export function createAdminRouter() {
         if (!c) {
           throw new Error('Cliente nao encontrado');
         }
-        for (const t of ['itens_pedido','pagamentos','estoque_movimentacoes']) await txRun(client, `DELETE FROM ${t} WHERE tenant_id=?`, [req.params.id]);
-        for (const t of ['pedidos','produtos','ingredientes','despesas','caixa']) await txRun(client, `DELETE FROM ${t} WHERE tenant_id=?`, [req.params.id]);
+        // Apaga os dados de TODAS as tabelas com tenant_id (exceto logs/auditoria, que ficam como histórico).
+        // A ordem das chaves estrangeiras não é conhecida de antemão: cada DELETE roda num SAVEPOINT e,
+        // se uma FK (23503) bloquear, tenta de novo na rodada seguinte, depois que os filhos já foram apagados.
+        const tabelasTenant = await txQAll<{ table_name: string }>(
+          client,
+          `SELECT c.table_name FROM information_schema.columns c
+             JOIN information_schema.tables t ON t.table_schema=c.table_schema AND t.table_name=c.table_name AND t.table_type='BASE TABLE'
+            WHERE c.table_schema='public' AND c.column_name='tenant_id'
+              AND c.table_name NOT IN ('admin_audit_events','system_logs','clientes')`,
+          []
+        );
+        let pendentes = tabelasTenant.map((r) => r.table_name).filter((n) => /^[a-z0-9_]+$/.test(n));
+        for (let rodada = 0; rodada < 8 && pendentes.length > 0; rodada++) {
+          const aindaBloqueadas: string[] = [];
+          let ultimoErro: unknown = null;
+          for (const t of pendentes) {
+            await client.query('SAVEPOINT del_tenant');
+            try {
+              await txRun(client, `DELETE FROM "${t}" WHERE tenant_id=?`, [req.params.id]);
+              await client.query('RELEASE SAVEPOINT del_tenant');
+            } catch (err: any) {
+              await client.query('ROLLBACK TO SAVEPOINT del_tenant');
+              if (err?.code !== '23503') throw err;
+              ultimoErro = err;
+              aindaBloqueadas.push(t);
+            }
+          }
+          if (aindaBloqueadas.length === pendentes.length) throw ultimoErro; // sem progresso: erro real
+          pendentes = aindaBloqueadas;
+        }
+        if (pendentes.length > 0) throw new Error('Nao foi possivel remover todos os dados do cliente: ' + pendentes.join(', '));
         await txRun(client, 'DELETE FROM renovacoes WHERE cliente_id=?', [req.params.id]);
+        // Gestão Delivery: o restaurante continua cadastrado, só perde o vínculo com o cliente do software.
+        await txRun(client, 'UPDATE gd_estabelecimentos SET cliente_id=NULL WHERE cliente_id=?', [req.params.id]);
         if (c.usuario) await txRun(client, 'DELETE FROM usuarios WHERE username=?', [c.usuario]);
         await writeAdminAuditEvent({
           tx: client,
