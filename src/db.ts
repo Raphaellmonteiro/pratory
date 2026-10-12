@@ -973,11 +973,13 @@ const { ensureWhatsAppCampaignsTable }    = await import('./db/migrations/whatsa
 const { ensureWhatsAppIntegrationsTable } = await import('./db/migrations/whatsappIntegrations');
 const { ensureWhatsAppAiUsageColumns }    = await import('./db/migrations/whatsappAiUsage');
 const { ensureGarconsSchema }             = await import('./db/migrations/garcons');
+const { ensureGestaoDeliverySchema }      = await import('./db/migrations/gestaoDelivery');
 await ensureOrdersSourceColumns();
 await ensureWhatsAppCampaignsTable();
 await ensureWhatsAppIntegrationsTable();
 await ensureWhatsAppAiUsageColumns();
 await ensureGarconsSchema();
+await ensureGestaoDeliverySchema();
 
     console.log('Migracoes PostgreSQL concluidas.');
   } catch (err: any) {

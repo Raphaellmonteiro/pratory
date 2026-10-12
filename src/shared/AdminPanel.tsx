@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Card, Button } from '../components/ui/Card';
+import AdminGestaoDelivery from './AdminGestaoDelivery';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Spinner } from '../components/ui/Spinner';
 import { adminScreenPagePaddingClass } from '../components/ui/screenChrome';
@@ -158,7 +159,7 @@ export default function AdminPanel() {
   >(null);
   const [buscaCliente, setBuscaCliente] = useState('');
   const [token, setToken] = useState<string | null>(localStorage.getItem('admin_token'));
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'clientes' | 'suporte' | 'financeiro' | 'diagnosticos'>('clientes');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'clientes' | 'suporte' | 'financeiro' | 'diagnosticos' | 'gestao'>('clientes');
   const [stats, setStats] = useState<any>(null);
   const [financeiro, setFinanceiro] = useState<any>(null);
   const [solicitacoes, setSolicitacoes] = useState<any[]>([]);
@@ -2930,6 +2931,12 @@ const handleUpdateSenha = async (e: React.FormEvent) => {
           >
             <LayoutDashboard size={18} /> Dashboard
           </button>
+          <button
+            onClick={() => { setActiveTab('gestao'); setAdminNavOpen(false); }}
+            className={`w-full flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-xl font-medium transition-all ${activeTab === 'gestao' ? 'bg-emerald-600 text-white shadow-lg' : 'text-zinc-300 hover:bg-zinc-800/60'}`}
+          >
+            <Wallet size={18} /> Gestão Delivery
+          </button>
         </aside>
 
         <main className={`min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-zinc-950 ${adminScreenPagePaddingClass}`}>
@@ -3125,6 +3132,10 @@ const handleUpdateSenha = async (e: React.FormEvent) => {
               </Card>
             </div>
           </div>
+
+          {activeTab === 'gestao' && (
+            <AdminGestaoDelivery token={token} onAuthError={handleAuthError} />
+          )}
 
           <div className={activeTab !== 'diagnosticos' ? 'hidden' : ''}>
             <div className="space-y-6">

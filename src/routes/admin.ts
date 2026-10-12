@@ -22,6 +22,7 @@ import { notifyTenantOrderStreams } from '../sse';
 import { coerceDeliveryConfigRow } from '../utils/deliveryConfigPersist';
 import { getPlanFeatures, type PaidTenantPlan, type PlanFeature } from '../config/planFeatures';
 import { ADMIN_AUDIT_ACTIONS } from '../services/adminAuditActions';
+import { registerGestaoDeliveryRoutes } from './adminGestaoDelivery';
 import { listAdminAuditEvents, writeAdminAuditEvent } from '../services/adminAuditService';
 import { invalidateTenantPlanCache } from '../services/tenantPlan';
 import { revalidatePixPaymentByOrder } from '../services/pixPaymentRevalidationService';
@@ -335,6 +336,7 @@ export function createAdminRouter() {
   const admin = Router();
   admin.use(authenticateToken);
   admin.use(authenticateAdmin);
+  registerGestaoDeliveryRoutes(admin);
 
   admin.get('/solicitacoes', async (_req, res) => {
     try { res.json(await qAll('SELECT * FROM solicitacoes ORDER BY created_at DESC', [])); }
@@ -620,7 +622,7 @@ export function createAdminRouter() {
         if (vencimento !== ant?.vencimento || planoFinal !== ant?.plano) {
           await txRun(
             client,
-            'INSERT INTO renovacoes (cliente_id,plano,valor,vencimento_anterior,novo_vencimento) VALUES (?,?,?,?,?)',
+            "INSERT INTO renovacoes (cliente_id,plano,valor,vencimento_anterior,novo_vencimento,origem) VALUES (?,?,?,?,?,'edicao')",
             [req.params.id, planoFinal, valor_plano, ant?.vencimento, vencimento]
           );
         }
@@ -972,7 +974,7 @@ export function createAdminRouter() {
                FROM clientes WHERE status='ativo' AND vencimento IS NOT NULL
                AND vencimento <= NOW() + INTERVAL '7 days' ORDER BY vencimento ASC`, []),
         qAll(`SELECT TO_CHAR(data_pagamento AT TIME ZONE '${TZ}', 'MM/YYYY') as mes, SUM(valor) as total
-              FROM renovacoes GROUP BY mes ORDER BY MIN(data_pagamento) DESC LIMIT 6`, []),
+              FROM renovacoes WHERE origem IS DISTINCT FROM 'edicao' GROUP BY mes ORDER BY MIN(data_pagamento) DESC LIMIT 6`, []),
         qAll("SELECT nome_estabelecimento,plano,valor_plano,vencimento,ultimo_acesso FROM clientes WHERE (trial_fim IS NULL OR trial_fim < NOW()) ORDER BY vencimento ASC", []),
       ]);
       res.json({
