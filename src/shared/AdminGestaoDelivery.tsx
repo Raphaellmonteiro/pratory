@@ -18,15 +18,15 @@ const C = {
   red: '#ea1d2c', redDark: '#a02331', redHover: '#9c050b', redSoft: '#fdecee',
   text: '#3f3e3e', muted: '#7c7875', border: '#e5e5e7', soft: '#f1f1f3', hover: '#f5f5f5', alt: '#f7f7f8',
 };
-const fieldInputClass =
+export const fieldInputClass =
   'w-full rounded-xl border border-[#e5e5e7] bg-[#ffffff] px-3 py-2 text-sm text-[#3f3e3e] placeholder:text-[#a6a29f] transition-all focus:border-[#ea1d2c] focus:outline-none focus:ring-2 focus:ring-[#ea1d2c]/20 disabled:cursor-not-allowed disabled:bg-[#f7f7f8] disabled:opacity-70';
-const fieldLabelClass = 'text-[11px] font-bold uppercase tracking-wider text-[#7c7875]';
+export const fieldLabelClass = 'text-[11px] font-bold uppercase tracking-wider text-[#7c7875]';
 
-const Card = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
+export const Card = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
   <div className={`min-w-0 max-w-full overflow-hidden rounded-2xl border border-[#e5e5e7] bg-[#ffffff] shadow-sm shadow-[#3f3e3e]/[0.06] ${className}`}>{children}</div>
 );
 
-function Modal({ open, onClose, title, children, wide = false }: {
+export function Modal({ open, onClose, title, children, wide = false }: {
   open: boolean; onClose: () => void; title: string; children: React.ReactNode; wide?: boolean;
 }) {
   useEffect(() => {
@@ -51,15 +51,15 @@ function Modal({ open, onClose, title, children, wide = false }: {
 
 /* ───────────── tipos ───────────── */
 
-type Status = 'em_andamento' | 'aguardando' | 'pago';
-type Lancamento = {
+export type Status = 'em_andamento' | 'aguardando' | 'pago';
+export type Lancamento = {
   id: number; estabelecimento_id: number; semana_inicio: string; semana_fim: string;
   valor_99food: number; valor_ifood: number; valor_outros: number;
   pct_meu_snap: number; pct_parceiro_snap: number; status: Status;
   data_pagamento: string | null; repasse_pago: boolean; repasse_data: string | null; observacoes: string | null;
   base: number; comissao: number; repasse: number; meu: number;
 };
-type Estabelecimento = {
+export type Estabelecimento = {
   id: number; nome: string; cliente_id: number | null; razao_social: string | null;
   documento_tipo: 'CPF' | 'CNPJ' | null; documento_numero: string | null; responsavel: string | null;
   whatsapp: string | null; email: string | null; cidade: string | null;
@@ -68,25 +68,25 @@ type Estabelecimento = {
   pct_parceiro: number; inicio_em: string | null; ativo: boolean; observacoes: string | null;
   total_semanas?: number; meu_acumulado?: number;
 };
-type Totais = {
+export type Totais = {
   gerenciado: number; comissao_bruta: number; repasse_parceiro: number; meu_liquido: number;
   recebido: number; a_receber: number; em_andamento: number; repasse_a_pagar: number;
 };
-type PorEst = Totais & { estabelecimento_id: number; nome: string; ativo: boolean; tem_parceiro: boolean;
+export type PorEst = Totais & { estabelecimento_id: number; nome: string; ativo: boolean; tem_parceiro: boolean;
   pct_meu: number; pct_parceiro: number; status: 'aguardando' | 'em_andamento' | 'pago' | 'sem_lancamento' };
-type SemanaRow = {
+export type SemanaRow = {
   semana_inicio: string; semana_fim: string; gerenciado: number; comissao_bruta: number; repasse_parceiro: number;
   meu_liquido: number; recebido: number | null; n_aguardando: number; n_andamento: number; n: number;
   por_estabelecimento: { estabelecimento_id: number; meu: number; status: Status }[];
 };
-type Resumo = {
+export type Resumo = {
   totais: Totais; por_estabelecimento: PorEst[]; semanas: SemanaRow[];
   semanas_disponiveis: { semana_inicio: string; semana_fim: string }[];
   alertas: { tipo: 'atrasado' | 'fechar_semana' | 'sem_lancamento'; nome: string; semana_inicio: string; dias: number | null; meu: number | null }[];
 };
-type ClienteSw = { id: number; nome_estabelecimento: string; whatsapp: string | null; plano: string; valor_plano: number;
+export type ClienteSw = { id: number; nome_estabelecimento: string; whatsapp: string | null; plano: string; valor_plano: number;
   vencimento: string; dias_atraso?: number; dias?: number };
-type Ganhos = {
+export type Ganhos = {
   meses: { mes: string; software_recebido: number; delivery_recebido: number; delivery_competencia: number; total_recebido: number }[];
   software: { mrr: number; pagantes: number; inadimplentes: ClienteSw[]; inadimplencia_total: number; a_vencer_7d: ClienteSw[] };
   delivery: { a_receber: number; em_andamento: number; repasse_a_pagar: number; top_90d: { nome: string; meu_liquido: number }[] };
@@ -95,12 +95,12 @@ type Ganhos = {
 
 /* ───────────── utilidades ───────────── */
 
-const brl = (n: number | null | undefined) =>
+export const brl = (n: number | null | undefined) =>
   (n ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-const pctFmt = (n: number) => `${(n ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })}%`;
+export const pctFmt = (n: number) => `${(n ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })}%`;
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
-const isoToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+export const isoToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 function addDays(iso: string, n: number) {
   const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10);
 }
@@ -108,13 +108,13 @@ function weekStart(iso: string) {
   const d = new Date(`${iso}T00:00:00Z`); return addDays(iso, -((d.getUTCDay() + 6) % 7));
 }
 /** "05 a 11/10" — igual ao rótulo da planilha. */
-function weekLabel(ini: string, fim: string) {
+export function weekLabel(ini: string, fim: string) {
   const [, , d1] = ini.split('-'); const [, m2, d2] = fim.split('-'); return `${d1} a ${d2}/${m2}`;
 }
-function monthLabel(ym: string) {
+export function monthLabel(ym: string) {
   const [y, m] = ym.split('-'); return `${['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][+m - 1]}/${y.slice(2)}`;
 }
-const fmtDate = (iso?: string | null) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '—');
+export const fmtDate = (iso?: string | null) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '—');
 
 /** Cálculo idêntico ao do servidor (usado só para pré-visualizar enquanto digita). */
 function calc(v99: number, vif: number, vout: number, pMeu: number, pPar: number) {
@@ -123,10 +123,10 @@ function calc(v99: number, vif: number, vout: number, pMeu: number, pPar: number
   const repasse = r2((base * pPar) / 100);
   return { base, comissao, repasse, meu: r2(comissao - repasse) };
 }
-const num = (s: string) => { const n = parseFloat(s.replace(/\./g, '').replace(',', '.')); return Number.isFinite(n) ? n : 0; };
-const numToInput = (n: number) => (n ? n.toFixed(2).replace('.', ',') : '');
+export const num = (s: string) => { const n = parseFloat(s.replace(/\./g, '').replace(',', '.')); return Number.isFinite(n) ? n : 0; };
+export const numToInput = (n: number) => (n ? n.toFixed(2).replace('.', ',') : '');
 /** 1.128,45 -> "R$ 1,1 mil" (rótulos curtos de gráfico) */
-const brlShort = (n: number) => (n >= 1000 ? `R$ ${(n / 1000).toFixed(1).replace('.', ',')} mil` : `R$ ${Math.round(n)}`);
+export const brlShort = (n: number) => (n >= 1000 ? `R$ ${(n / 1000).toFixed(1).replace('.', ',')} mil` : `R$ ${Math.round(n)}`);
 
 const STATUS_META: Record<Status | 'sem_lancamento', { label: string; cls: string }> = {
   em_andamento: { label: 'Em andamento', cls: 'bg-[#e8f3fb] text-[#0369a1] border-[#bfdcef]' },
@@ -134,13 +134,13 @@ const STATUS_META: Record<Status | 'sem_lancamento', { label: string; cls: strin
   pago: { label: 'Pago', cls: 'bg-[#e8f5ec] text-[#15803d] border-[#bfe3c9]' },
   sem_lancamento: { label: 'Sem lançamento', cls: 'bg-[#f1f1f3] text-[#4f4c4a] border-[#e5e5e7]' },
 };
-const StatusChip = ({ s }: { s: Status | 'sem_lancamento' }) => (
+export const StatusChip = ({ s }: { s: Status | 'sem_lancamento' }) => (
   <span className={`inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${STATUS_META[s].cls}`}>
     {STATUS_META[s].label}
   </span>
 );
 
-function useApi(token: string | null, onAuthError?: () => void) {
+export function useApi(token: string | null, onAuthError?: () => void) {
   return useCallback(async <T,>(method: string, path: string, body?: unknown): Promise<T> => {
     const res = await fetch(`/api/admin${path}`, {
       method,
@@ -154,7 +154,7 @@ function useApi(token: string | null, onAuthError?: () => void) {
   }, [token, onAuthError]);
 }
 
-const Kpi = ({ label, value, hint, tone = 'default', icon }: {
+export const Kpi = ({ label, value, hint, tone = 'default', icon }: {
   label: string; value: string; hint?: string; tone?: 'default' | 'good' | 'warn' | 'main'; icon?: React.ReactNode;
 }) => (
   <Card className={`p-4 ${tone === 'main' ? '!border-[#ea1d2c] !bg-[#ea1d2c] text-[#ffffff]' : ''}`}>
@@ -167,7 +167,7 @@ const Kpi = ({ label, value, hint, tone = 'default', icon }: {
   </Card>
 );
 
-const Btn = ({ children, onClick, tone = 'ghost', disabled, title }: {
+export const Btn = ({ children, onClick, tone = 'ghost', disabled, title }: {
   children: React.ReactNode; onClick?: () => void; tone?: 'ghost' | 'primary' | 'danger'; disabled?: boolean; title?: string;
 }) => (
   <button type="button" title={title} disabled={disabled} onClick={onClick}
@@ -228,12 +228,12 @@ export default function AdminGestaoDelivery({ token, onAuthError, secao = 'gesta
   );
 }
 
-type Shared = {
+export type Shared = {
   api: ReturnType<typeof useApi>; version: number; bump: () => void;
   notify: (m: string, ok?: boolean) => void; fail: (e: unknown) => void;
 };
 
-const Loading = () => (
+export const Loading = () => (
   <div className="flex items-center justify-center py-16 text-[#7c7875]"><Loader2 className="animate-spin" size={22} /></div>
 );
 
@@ -351,7 +351,7 @@ function GanhosView({ api, version, notify, fail, bump }: Shared) {
   );
 }
 
-function PagamentoSoftwareModal({ cliente, api, onClose, onDone, fail }: {
+export function PagamentoSoftwareModal({ cliente, api, onClose, onDone, fail }: {
   cliente: ClienteSw | null; api: Shared['api']; onClose: () => void; onDone: () => void; fail: (e: unknown) => void;
 }) {
   const [valor, setValor] = useState(''); const [dias, setDias] = useState('30'); const [forma, setForma] = useState('pix');
@@ -509,7 +509,7 @@ function VisaoGeral({ api, version, notify, fail, bump, goLancar }: Shared & { g
 }
 
 /** Detalhe de um estabelecimento: histórico, baixa em lote, cobrança por WhatsApp. */
-function EstDetalhe({ estId, api, version, notify, fail, bump }: Shared & { estId: number }) {
+export function EstDetalhe({ estId, api, version, notify, fail, bump }: Shared & { estId: number }) {
   const [rows, setRows] = useState<Lancamento[] | null>(null);
   const [est, setEst] = useState<Estabelecimento | null>(null);
   const [sel, setSel] = useState<Set<number>>(new Set());
@@ -1007,47 +1007,38 @@ function Planilha({ api, version, notify, fail }: Shared) {
 
 /* ═════════════════════════ CADASTRO ═════════════════════════ */
 
-const emptyEst = (): Partial<Estabelecimento> => ({
+export const emptyEst = (): Partial<Estabelecimento> => ({
   nome: '', apps: ['99food', 'ifood'], pct_meu: 10, tem_parceiro: false, pct_parceiro: 0, ativo: true,
   documento_tipo: 'CNPJ', pix_tipo: 'cnpj', inicio_em: isoToday(),
 });
 
-function Cadastro({ api, version, notify, fail, bump }: Shared) {
-  const [list, setList] = useState<Estabelecimento[] | null>(null);
-  const [edit, setEdit] = useState<Partial<Estabelecimento> | null>(null);
+/** Formulário de cadastro/edição de estabelecimento (usado no Cadastro e na aba Clientes). */
+export function EstabelecimentoEditor({ edit, onClose, onSaved, api, notify, fail, clientes }: {
+  edit: Partial<Estabelecimento> | null; onClose: () => void; onSaved: () => void;
+  api: Shared['api']; notify: Shared['notify']; fail: Shared['fail'];
+  clientes: { id: number; nome_estabelecimento: string }[];
+}) {
+  const [draft, setDraft] = useState<Partial<Estabelecimento> | null>(edit);
   const [recalc, setRecalc] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [showArq, setShowArq] = useState(false);
-  const [clientes, setClientes] = useState<{ id: number; nome_estabelecimento: string }[]>([]);
-
-  useEffect(() => { api<Estabelecimento[]>('GET', '/gestao-delivery/estabelecimentos').then(setList).catch(fail); }, [api, version, fail]);
-  useEffect(() => { api<any[]>('GET', '/clientes').then((c) => setClientes(c.map((x) => ({ id: x.id, nome_estabelecimento: x.nome_estabelecimento })))).catch(() => {}); }, [api]);
+  useEffect(() => { setDraft(edit); setRecalc(false); }, [edit]);
 
   const submit = async () => {
-    if (!edit) return; setBusy(true);
+    if (!draft) return; setBusy(true);
     try {
       const body = {
-        ...edit,
-        pct_meu: num(String(edit.pct_meu ?? 0)),
-        pct_parceiro: edit.tem_parceiro ? num(String(edit.pct_parceiro ?? 0)) : 0,
+        ...draft,
+        pct_meu: num(String(draft.pct_meu ?? 0)),
+        pct_parceiro: draft.tem_parceiro ? num(String(draft.pct_parceiro ?? 0)) : 0,
         recalcular_abertas: recalc,
       };
-      if (edit.id) await api('PUT', `/gestao-delivery/estabelecimentos/${edit.id}`, body);
+      if (draft.id) await api('PUT', `/gestao-delivery/estabelecimentos/${draft.id}`, body);
       else await api('POST', '/gestao-delivery/estabelecimentos', body);
-      notify('Estabelecimento salvo.'); setEdit(null); setRecalc(false); bump();
+      notify('Estabelecimento salvo.'); setRecalc(false); onSaved();
     } catch (e) { fail(e); } finally { setBusy(false); }
   };
-  const remove = async (e: Estabelecimento) => {
-    if (!window.confirm(`Remover "${e.nome}"? Se tiver histórico, ele será apenas arquivado.`)) return;
-    try { const r = await api<{ arquivado: boolean }>('DELETE', `/gestao-delivery/estabelecimentos/${e.id}`);
-      notify(r.arquivado ? 'Arquivado (o histórico foi mantido).' : 'Removido.'); bump(); } catch (er) { fail(er); }
-  };
-  const reativar = async (e: Estabelecimento) => { try { await api('POST', `/gestao-delivery/estabelecimentos/${e.id}/reativar`); bump(); } catch (er) { fail(er); } };
-
-  if (!list) return <Loading />;
-  const ativos = list.filter((x) => x.ativo), arq = list.filter((x) => !x.ativo);
-  const f = edit ?? {};
-  const upd = (p: Partial<Estabelecimento>) => setEdit((cur) => ({ ...(cur ?? {}), ...p }));
+  const f = draft ?? {};
+  const upd = (p: Partial<Estabelecimento>) => setDraft((cur) => ({ ...(cur ?? {}), ...p }));
   const toggleApp = (a: string) => upd({ apps: f.apps?.includes(a) ? f.apps.filter((x) => x !== a) : [...(f.apps ?? []), a] });
   // função (e não componente) para o input não ser remontado a cada tecla e perder o foco
   const field = (label: string, k: keyof Estabelecimento, rest: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
@@ -1056,39 +1047,8 @@ function Cadastro({ api, version, notify, fail, bump }: Shared) {
         onChange={(e) => upd({ [k]: e.target.value } as Partial<Estabelecimento>)} {...rest} /></label>);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-[#6f6b68]">{ativos.length} restaurante(s) ativo(s)</p>
-        <Btn tone="primary" onClick={() => setEdit(emptyEst())}><Plus size={14} />Novo estabelecimento</Btn>
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {ativos.map((e) => (
-          <Card key={e.id} className="space-y-2 p-4">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0"><p className="truncate font-black text-[#3f3e3e]">{e.nome}</p>
-                <p className="truncate text-xs text-[#7c7875]">{[e.responsavel, e.cidade].filter(Boolean).join(' · ') || '—'}</p></div>
-              <div className="flex shrink-0 gap-1"><Btn onClick={() => setEdit(e)} title="Editar"><Pencil size={13} /></Btn>
-                <Btn tone="danger" onClick={() => remove(e)} title="Remover"><Trash2 size={13} /></Btn></div>
-            </div>
-            <div className="flex flex-wrap gap-1.5 text-[11px] font-bold">
-              <span className="rounded-full bg-[#fdecee] px-2 py-0.5 text-[#a02331]">{pctFmt(e.pct_meu)} meu</span>
-              {e.tem_parceiro ? <span className="rounded-full bg-[#f3eefe] px-2 py-0.5 text-[#6d28d9]">{pctFmt(e.pct_parceiro)} {e.parceiro_nome || 'parceiro'}</span>
-                : <span className="rounded-full bg-[#f1f1f3] px-2 py-0.5 text-[#4f4c4a]">sem parceiro</span>}
-              {e.apps.map((a) => <span key={a} className="rounded-full bg-[#ededee] px-2 py-0.5 text-[#4f4c4a]">{a}</span>)}
-              {e.cliente_id && <span className="rounded-full bg-[#e8f3fb] px-2 py-0.5 text-[#0369a1]">usa o software</span>}
-            </div>
-            <p className="text-xs text-[#7c7875]">{e.total_semanas ?? 0} semana(s) · acumulado <b className="text-[#4f4c4a]">{brl(e.meu_acumulado)}</b></p>
-            {e.pix_chave && <p className="truncate text-xs text-[#7c7875]">PIX {e.pix_tipo}: <span className="text-[#4f4c4a]">{e.pix_chave}</span></p>}
-          </Card>))}
-      </div>
-
-      {arq.length > 0 && (<div>
-        <button type="button" className="text-xs font-bold text-[#7c7875] hover:text-[#4f4c4a]" onClick={() => setShowArq((v) => !v)}>{showArq ? 'Ocultar' : 'Ver'} arquivados ({arq.length})</button>
-        {showArq && <ul className="mt-2 space-y-1">{arq.map((e) => <li key={e.id} className="flex items-center justify-between rounded-lg border border-[#e5e5e7] px-3 py-2 text-sm text-[#6f6b68]">{e.nome}<Btn onClick={() => reativar(e)}>Reativar</Btn></li>)}</ul>}
-      </div>)}
-
-      <Modal open={!!edit} onClose={() => setEdit(null)} title={f.id ? 'Editar estabelecimento' : 'Novo estabelecimento'} wide>
+    <>
+      <Modal open={!!edit} onClose={onClose} title={f.id ? 'Editar estabelecimento' : 'Novo estabelecimento'} wide>
         <div className="space-y-4 overflow-y-auto p-4">
           <section className="grid gap-3 sm:grid-cols-2">
             {field("Nome do estabelecimento *", "nome")}{field("Razão social", "razao_social")}
@@ -1136,9 +1096,66 @@ function Cadastro({ api, version, notify, fail, bump }: Shared) {
             <input className="mt-0.5 accent-[#ea1d2c]" type="checkbox" checked={recalc} onChange={(e) => setRecalc(e.target.checked)} />
             Aplicar estas porcentagens também às semanas ainda não pagas. Sem marcar, só as próximas semanas usam a taxa nova (semanas pagas nunca mudam).</label>}
 
-          <div className="flex justify-end gap-2"><Btn onClick={() => setEdit(null)}>Cancelar</Btn><Btn tone="primary" disabled={busy} onClick={submit}>{busy ? 'Salvando…' : 'Salvar'}</Btn></div>
+          <div className="flex justify-end gap-2"><Btn onClick={() => onClose()}>Cancelar</Btn><Btn tone="primary" disabled={busy} onClick={submit}>{busy ? 'Salvando…' : 'Salvar'}</Btn></div>
         </div>
       </Modal>
+    </>
+  );
+}
+
+function Cadastro({ api, version, notify, fail, bump }: Shared) {
+  const [list, setList] = useState<Estabelecimento[] | null>(null);
+  const [edit, setEdit] = useState<Partial<Estabelecimento> | null>(null);
+  const [showArq, setShowArq] = useState(false);
+  const [clientes, setClientes] = useState<{ id: number; nome_estabelecimento: string }[]>([]);
+
+  useEffect(() => { api<Estabelecimento[]>('GET', '/gestao-delivery/estabelecimentos').then(setList).catch(fail); }, [api, version, fail]);
+  useEffect(() => { api<any[]>('GET', '/clientes').then((c) => setClientes(c.map((x) => ({ id: x.id, nome_estabelecimento: x.nome_estabelecimento })))).catch(() => {}); }, [api]);
+
+  const remove = async (e: Estabelecimento) => {
+    if (!window.confirm(`Remover "${e.nome}"? Se tiver histórico, ele será apenas arquivado.`)) return;
+    try { const r = await api<{ arquivado: boolean }>('DELETE', `/gestao-delivery/estabelecimentos/${e.id}`);
+      notify(r.arquivado ? 'Arquivado (o histórico foi mantido).' : 'Removido.'); bump(); } catch (er) { fail(er); }
+  };
+  const reativar = async (e: Estabelecimento) => { try { await api('POST', `/gestao-delivery/estabelecimentos/${e.id}/reativar`); bump(); } catch (er) { fail(er); } };
+
+  if (!list) return <Loading />;
+  const ativos = list.filter((x) => x.ativo), arq = list.filter((x) => !x.ativo);
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-[#6f6b68]">{ativos.length} restaurante(s) ativo(s)</p>
+        <Btn tone="primary" onClick={() => setEdit(emptyEst())}><Plus size={14} />Novo estabelecimento</Btn>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {ativos.map((e) => (
+          <Card key={e.id} className="space-y-2 p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0"><p className="truncate font-black text-[#3f3e3e]">{e.nome}</p>
+                <p className="truncate text-xs text-[#7c7875]">{[e.responsavel, e.cidade].filter(Boolean).join(' · ') || '—'}</p></div>
+              <div className="flex shrink-0 gap-1"><Btn onClick={() => setEdit(e)} title="Editar"><Pencil size={13} /></Btn>
+                <Btn tone="danger" onClick={() => remove(e)} title="Remover"><Trash2 size={13} /></Btn></div>
+            </div>
+            <div className="flex flex-wrap gap-1.5 text-[11px] font-bold">
+              <span className="rounded-full bg-[#fdecee] px-2 py-0.5 text-[#a02331]">{pctFmt(e.pct_meu)} meu</span>
+              {e.tem_parceiro ? <span className="rounded-full bg-[#f3eefe] px-2 py-0.5 text-[#6d28d9]">{pctFmt(e.pct_parceiro)} {e.parceiro_nome || 'parceiro'}</span>
+                : <span className="rounded-full bg-[#f1f1f3] px-2 py-0.5 text-[#4f4c4a]">sem parceiro</span>}
+              {e.apps.map((a) => <span key={a} className="rounded-full bg-[#ededee] px-2 py-0.5 text-[#4f4c4a]">{a}</span>)}
+              {e.cliente_id && <span className="rounded-full bg-[#e8f3fb] px-2 py-0.5 text-[#0369a1]">usa o software</span>}
+            </div>
+            <p className="text-xs text-[#7c7875]">{e.total_semanas ?? 0} semana(s) · acumulado <b className="text-[#4f4c4a]">{brl(e.meu_acumulado)}</b></p>
+            {e.pix_chave && <p className="truncate text-xs text-[#7c7875]">PIX {e.pix_tipo}: <span className="text-[#4f4c4a]">{e.pix_chave}</span></p>}
+          </Card>))}
+      </div>
+
+      {arq.length > 0 && (<div>
+        <button type="button" className="text-xs font-bold text-[#7c7875] hover:text-[#4f4c4a]" onClick={() => setShowArq((v) => !v)}>{showArq ? 'Ocultar' : 'Ver'} arquivados ({arq.length})</button>
+        {showArq && <ul className="mt-2 space-y-1">{arq.map((e) => <li key={e.id} className="flex items-center justify-between rounded-lg border border-[#e5e5e7] px-3 py-2 text-sm text-[#6f6b68]">{e.nome}<Btn onClick={() => reativar(e)}>Reativar</Btn></li>)}</ul>}
+      </div>)}
+
+      <EstabelecimentoEditor edit={edit} onClose={() => setEdit(null)} api={api} notify={notify} fail={fail} clientes={clientes}
+        onSaved={() => { setEdit(null); bump(); }} />
     </div>
   );
 }

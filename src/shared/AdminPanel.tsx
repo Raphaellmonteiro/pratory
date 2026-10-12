@@ -45,6 +45,8 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Card, Button } from '../components/ui/Card';
 import AdminGestaoDelivery from './AdminGestaoDelivery';
+import AdminDashboard from './AdminDashboard';
+import AdminClientesHub, { type ClientesFocus } from './AdminClientesHub';
 import '../styles/admin-light.css';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Spinner } from '../components/ui/Spinner';
@@ -161,9 +163,9 @@ export default function AdminPanel() {
   >(null);
   const [buscaCliente, setBuscaCliente] = useState('');
   const [token, setToken] = useState<string | null>(localStorage.getItem('admin_token'));
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'clientes' | 'suporte' | 'financeiro' | 'diagnosticos' | 'gestao' | 'gestao_clientes'>('clientes');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'clientes' | 'suporte' | 'diagnosticos' | 'gestao'>('dashboard');
+  const [clientesFocus, setClientesFocus] = useState<ClientesFocus>(null);
   const [stats, setStats] = useState<any>(null);
-  const [financeiro, setFinanceiro] = useState<any>(null);
   const [solicitacoes, setSolicitacoes] = useState<any[]>([]);
   const [clientes, setClientes] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -282,7 +284,6 @@ export default function AdminPanel() {
       fetchStats();
       fetchSolicitacoes();
       fetchClientes();
-      fetchFinanceiro();
     }
   }, [token]);
 
@@ -417,14 +418,6 @@ export default function AdminPanel() {
       setTenantModuleError(null);
     }
   }, [token, selectedTenantId, tenantModule]);
-
-  const fetchFinanceiro = async () => {
-    const res = await fetch('/api/admin/financeiro', { headers: { Authorization: `Bearer ${token}` } });
-    if (res.ok) {
-      const data = await res.json();
-      setFinanceiro(data);
-    }
-  };
 
   const fetchDiagnostics = async () => {
     setDiagnosticsLoading(true);
@@ -1006,7 +999,6 @@ const handleUpdatePlano = async (e: React.FormEvent) => {
       if (res.ok) {
         setEditPlano(null);
         fetchClientes();
-        fetchFinanceiro();
         fetchStats();
         alert("Dados do cliente atualizados com sucesso!");
       } else {
@@ -1067,7 +1059,6 @@ const handleUpdateSenha = async (e: React.FormEvent) => {
       if (res.ok) {
         fetchClientes();
         fetchStats();
-        fetchFinanceiro();
         showActionToast("Cliente excluído com sucesso", true);
       } else {
         const text = await res.text();
@@ -2553,140 +2544,22 @@ const handleUpdateSenha = async (e: React.FormEvent) => {
         </div>
 
         {clientesSubTab === 'lista' ? (
-          <>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-xl sm:text-2xl font-bold text-white">Clientes Software</h2>
-              <div className="relative w-full sm:w-auto sm:min-w-[14rem]">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" size={16} />
-                <input
-                  type="text"
-                  placeholder="Buscar cliente..."
-                  value={buscaCliente}
-                  onChange={(e) => setBuscaCliente(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 min-h-[44px] !bg-zinc-900 border border-zinc-800 rounded-xl text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-zinc-700 transition-all"
-                />
-              </div>
-            </div>
-            <Card className="overflow-x-auto !bg-zinc-900 !border-zinc-800 min-w-0">
-              <table className="w-full min-w-[720px] text-left border-collapse">
-                <thead>
-                  <tr className="!bg-zinc-900 text-zinc-300 border-b border-zinc-800">
-                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold uppercase tracking-wide text-zinc-400">Estabelecimento</th>
-                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold uppercase tracking-wide text-zinc-400">Acesso</th>
-                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold uppercase tracking-wide text-zinc-400">Plano & Valor</th>
-                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold uppercase tracking-wide text-zinc-400">Vencimento</th>
-                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold uppercase tracking-wide text-zinc-400 text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800">
-                  {clientesVisiveis.map((c: any) => {
-                      const diasRestantes = c.vencimento
-                        ? Math.ceil((new Date(c.vencimento).getTime() - Date.now()) / 86400000)
-                        : c.trial_fim ? Math.ceil((new Date(c.trial_fim).getTime() - Date.now()) / 86400000) : null;
-                      const isOnline = c.ultimo_acesso && (Date.now() - new Date(c.ultimo_acesso).getTime() < 86400000);
-                      return (
-                        <tr key={c.id} className="hover:bg-zinc-800/60 transition-colors">
-                          <td className="px-3 sm:px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-zinc-300'}`} title={isOnline ? 'Online (Acesso Recente)' : 'Offline'} />
-                              <div>
-                                <p className="font-bold text-white">{c.nome_estabelecimento}</p>
-                                <p className="text-[10px] text-zinc-400 font-mono">{c.documento_tipo}: {c.documento_numero}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-3 sm:px-6 py-4">
-                            <div className="space-y-1.5">
-                              <div className="flex items-center gap-2">
-                                <UserIcon size={14} className="text-zinc-400 shrink-0" />
-                                <span className="font-mono text-sm text-zinc-300">{c.usuario}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Lock size={14} className="text-zinc-400" />
-                                <span className="font-mono text-xs text-zinc-400 italic">Use &quot;Alterar Senhas&quot; para redefinir</span>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-3 sm:px-6 py-4">
-                            <div className="space-y-1">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                c.plano === 'basico' ? 'bg-zinc-800 text-zinc-200' :
-                                c.plano === 'basico_delivery' ? 'bg-cyan-900 text-cyan-300' :
-                                c.plano === 'completo' ? 'bg-emerald-900 text-emerald-300' :
-                                c.plano === 'trial' ? 'bg-purple-900 text-purple-300' :
-                                'bg-zinc-800 text-zinc-300'
-                              }`}>
-                                {c.plano || 'Completo'}
-                              </span>
-                              {c.trial_fim && new Date(c.trial_fim).getTime() >= Date.now() && (
-                                <p className="text-[10px] font-bold uppercase tracking-wide text-amber-400">
-                                  Trial ativo ate {new Date(c.trial_fim).toLocaleDateString('pt-BR')}
-                                </p>
-                              )}
-                              <p className="text-xs font-bold text-zinc-400">R$ {c.valor_plano ? c.valor_plano.toFixed(2) : '0.00'}</p>
-                            </div>
-                          </td>
-                          <td className="px-3 sm:px-6 py-4">
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${c.status === 'ativo' ? 'bg-emerald-900 text-emerald-400' : 'bg-red-900 text-red-400'}`}>
-                                  {c.status}
-                                </span>
-                                {diasRestantes !== null && (
-                                  <span className={`font-bold text-xs ${diasRestantes > 5 ? 'text-emerald-400' : diasRestantes > 0 ? 'text-amber-400' : 'text-red-400'}`}>
-                                    {diasRestantes}d
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[10px] text-zinc-400 uppercase tracking-wide">
-                                Exp: {c.vencimento ? new Date(c.vencimento).toLocaleDateString('pt-BR') : c.trial_fim ? new Date(c.trial_fim).toLocaleDateString('pt-BR') : '—'}
-                              </p>
-                            </div>
-                          </td>
-                          <td className="px-3 sm:px-6 py-4 text-right align-top">
-                            <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2 max-w-[min(100%,280px)] sm:max-w-none ml-auto">
-                              <button
-                                type="button"
-                                onClick={() => { setSelectedTenantId(c.id); setSelectedTenant({ id: c.id, nome_estabelecimento: c.nome_estabelecimento }); }}
-                                className="px-2 sm:px-3 py-2 min-h-[40px] bg-transparent text-emerald-400 rounded-lg text-[11px] sm:text-xs font-bold hover:bg-emerald-500/20 transition-colors flex items-center gap-1.5"
-                              >
-                                <Wrench size={14} /> <span className="hidden sm:inline">Abrir painel</span><span className="sm:hidden">Painel</span>
-                              </button>
-                              <button type="button" onClick={() => { setSubUsersCliente(c); fetchSubUsers(c.id); }} className="p-2 min-h-[40px] min-w-[40px] inline-flex items-center justify-center bg-transparent text-zinc-400 rounded-lg hover:bg-zinc-500/20 transition-colors" title="Sub-usuários">
-                                <Users2 size={16} />
-                              </button>
-                              <button type="button" onClick={() => openEditPlano(c)} className="p-2 min-h-[40px] min-w-[40px] inline-flex items-center justify-center bg-transparent text-blue-400 rounded-lg hover:bg-blue-500/20 transition-colors" title="Editar">
-                                <Pencil size={16} />
-                              </button>
-                              <button type="button" onClick={() => { setEditSenha(c); setNovaSenha(''); setNovaSenhaAdmin(''); setNovaSenhaCaixa(''); }} className="p-2 min-h-[40px] min-w-[40px] inline-flex items-center justify-center bg-transparent text-violet-400 rounded-lg hover:bg-violet-500/20 transition-colors" title="Senhas">
-                                <KeyRound size={16} />
-                              </button>
-                              <button type="button" onClick={() => handleBloquear(c.id, c.status === 'ativo' ? 'bloquear' : 'desbloquear')} className={`p-2 min-h-[40px] min-w-[40px] inline-flex items-center justify-center rounded-lg transition-colors ${c.status === 'ativo' ? 'bg-transparent text-red-400 hover:bg-red-500/20' : 'bg-transparent text-emerald-400 hover:bg-emerald-500/20'}`} title={c.status === 'ativo' ? 'Bloquear' : 'Desbloquear'}>
-                                {c.status === 'ativo' ? <Lock size={16} /> : <UserCheck size={16} />}
-                              </button>
-                              <button type="button" onClick={() => handleDisconnectCliente(c.id)} className="p-2 min-h-[40px] min-w-[40px] inline-flex items-center justify-center bg-transparent text-amber-400 rounded-lg hover:bg-amber-500/20 transition-colors" title="Desconectar">
-                                <LogOut size={16} />
-                              </button>
-                              <button type="button" onClick={() => handleDeleteCliente(c.id)} className="p-2 min-h-[40px] min-w-[40px] inline-flex items-center justify-center bg-transparent text-red-400 rounded-lg hover:bg-red-500/20 transition-colors" title="Excluir">
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
-            </Card>
-            {hasMoreClientes && (
-              <div className="flex justify-center pt-4">
-                <button onClick={loadMoreClientes}
-                  className="px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold rounded-xl text-sm transition-all">
-                  Carregar mais (+50)
-                </button>
-              </div>
-            )}
-          </>
+          <AdminClientesHub
+            token={token}
+            onAuthError={handleAuthError}
+            clientes={clientes}
+            focus={clientesFocus}
+            onFocusHandled={() => setClientesFocus(null)}
+            actions={{
+              onPainel: (c: any) => { setSelectedTenantId(c.id); setSelectedTenant({ id: c.id, nome_estabelecimento: c.nome_estabelecimento }); },
+              onEditar: (c: any) => openEditPlano(c),
+              onSenhas: (c: any) => { setEditSenha(c); setNovaSenha(''); setNovaSenhaAdmin(''); setNovaSenhaCaixa(''); },
+              onSubUsers: (c: any) => { setSubUsersCliente(c); fetchSubUsers(c.id); },
+              onBloquear: (c: any) => handleBloquear(c.id, c.status === 'ativo' ? 'bloquear' : 'desbloquear'),
+              onDesconectar: (c: any) => handleDisconnectCliente(c.id),
+              onExcluir: (c: any) => handleDeleteCliente(c.id),
+            }}
+          />
         ) : (
           <div className="space-y-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -2887,17 +2760,20 @@ const handleUpdateSenha = async (e: React.FormEvent) => {
           </div>
           <button
             type="button"
-            onClick={() => { setActiveTab('clientes'); setAdminNavOpen(false); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-xl font-medium transition-all ${activeTab === 'clientes' ? 'bg-[#ea1d2c] text-[#ffffff] shadow-sm' : 'text-[#4f4c4a] hover:bg-[#f5f5f5]'}`}
+            onClick={() => { setActiveTab('dashboard'); setAdminNavOpen(false); }}
+            className={`w-full flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-xl font-medium transition-all ${activeTab === 'dashboard' ? 'bg-[#ea1d2c] text-[#ffffff] shadow-sm' : 'text-[#4f4c4a] hover:bg-[#f5f5f5]'}`}
           >
-            <Users size={18} /> Clientes Software
+            <LayoutDashboard size={18} /> Dashboard
           </button>
           <button
             type="button"
-            onClick={() => { setActiveTab('gestao_clientes'); setAdminNavOpen(false); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-xl font-medium transition-all ${activeTab === 'gestao_clientes' ? 'bg-[#ea1d2c] text-[#ffffff] shadow-sm' : 'text-[#4f4c4a] hover:bg-[#f5f5f5]'}`}
+            onClick={() => { setActiveTab('clientes'); setAdminNavOpen(false); }}
+            className={`w-full flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-xl font-medium transition-all ${activeTab === 'clientes' ? 'bg-[#ea1d2c] text-[#ffffff] shadow-sm' : 'text-[#4f4c4a] hover:bg-[#f5f5f5]'}`}
           >
-            <Building2 size={18} /> Clientes Gestão Delivery
+            <Users size={18} /> Clientes
+            {stats?.pendentes > 0 && (
+              <span className="ml-auto min-w-[1.25rem] rounded-full bg-amber-500 px-1.5 text-center text-[11px] font-bold text-white">{stats.pendentes}</span>
+            )}
           </button>
           <button
             type="button"
@@ -2906,89 +2782,26 @@ const handleUpdateSenha = async (e: React.FormEvent) => {
           >
             <Wallet size={18} /> Gestão Delivery
           </button>
-          <button
-            type="button"
-            onClick={() => { setActiveTab('financeiro'); setAdminNavOpen(false); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-xl font-medium transition-all ${activeTab === 'financeiro' ? 'bg-[#ea1d2c] text-[#ffffff] shadow-sm' : 'text-[#4f4c4a] hover:bg-[#f5f5f5]'}`}
-          >
-            <DollarSign size={18} /> Financeiro
-            {financeiro?.proximos_vencimentos?.some((v: any) => v.dias <= 3) && (
-              <span className="ml-auto w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => { setActiveTab('dashboard'); setAdminNavOpen(false); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-xl font-medium transition-all ${activeTab === 'dashboard' ? 'bg-[#ea1d2c] text-[#ffffff] shadow-sm' : 'text-[#4f4c4a] hover:bg-[#f5f5f5]'}`}
-          >
-            <LayoutDashboard size={18} /> Dashboard
-          </button>
         </aside>
 
         <main className={`min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-zinc-950 ${adminScreenPagePaddingClass}`}>
-          <div className={activeTab !== 'dashboard' ? 'hidden' : ''}>
-            <div className="min-w-0 space-y-3 sm:space-y-4 2xl:space-y-6">
-              <div className="grid grid-cols-1 gap-2 sm:gap-3 md:grid-cols-5 md:gap-4 2xl:gap-5">
-                <Card className="min-w-0 p-3 sm:p-4 md:p-5 2xl:p-6">
-                  <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1">Total Clientes</p>
-                  <h3 className="text-3xl font-black text-white">{stats?.total || 0}</h3>
-                </Card>
-                <Card className="min-w-0 border-l-4 border-emerald-500 p-3 sm:p-4 md:p-5 2xl:p-6">
-                  <p className="text-xs font-bold text-emerald-500 uppercase tracking-widest mb-1">Ativos</p>
-                  <h3 className="text-3xl font-black text-emerald-400">{stats?.ativos || 0}</h3>
-                </Card>
-                <Card className="min-w-0 border-l-4 border-amber-500 p-3 sm:p-4 md:p-5 2xl:p-6">
-                  <p className="text-xs font-bold text-amber-500 uppercase tracking-widest mb-1">Pendentes</p>
-                  <h3 className="text-3xl font-black text-amber-400">{stats?.pendentes || 0}</h3>
-                </Card>
-                <Card className="min-w-0 border-l-4 border-red-500 p-3 sm:p-4 md:p-5 2xl:p-6">
-                  <p className="text-xs font-bold text-red-500 uppercase tracking-widest mb-1">Bloqueados</p>
-                  <h3 className="text-3xl font-black text-red-400">{stats?.bloqueados || 0}</h3>
-                </Card>
-                <Card className="min-w-0 border-l-4 border-zinc-400 p-3 sm:p-4 md:p-5 2xl:p-6">
-                  <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1">Expirados</p>
-                  <h3 className="text-3xl font-black text-white">{stats?.expirados || 0}</h3>
-                </Card>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 min-w-0 lg:grid-cols-2 lg:gap-4 2xl:gap-6">
-                <Card className="min-w-0 p-3 sm:p-4 md:p-5 2xl:p-6">
-                  <h3 className="mb-3 flex items-center gap-2 font-bold text-white sm:mb-4 2xl:mb-6"><Activity size={18} /> Solicitações Recentes</h3>
-                  <div className="space-y-2 2xl:space-y-4">
-                    {solicitacoes.slice(0, 5).map(s => (
-                      <div key={s.id} className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-800 p-3 2xl:rounded-2xl 2xl:p-4">
-                        <div>
-                          <p className="font-bold text-white">{s.nome_estabelecimento}</p>
-                          <p className="text-xs text-zinc-400">{s.cidade} • {new Date(s.created_at).toLocaleDateString()}</p>
-                        </div>
-                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${s.status === 'pendente' ? 'bg-amber-900 text-amber-400' : s.status === 'aprovado' ? 'bg-emerald-900 text-emerald-400' : 'bg-red-900 text-red-400'}`}>
-                          {s.status}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-                <Card className="min-w-0 p-3 sm:p-4 md:p-5 2xl:p-6">
-                  <h3 className="mb-3 flex items-center gap-2 font-bold text-white sm:mb-4 2xl:mb-6"><Users size={18} /> Últimos Clientes</h3>
-                  <div className="space-y-2 2xl:space-y-4">
-                    {clientes.slice(0, 5).map(c => (
-                      <div key={c.id} className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-800 p-3 2xl:rounded-2xl 2xl:p-4">
-                        <div>
-                          <p className="font-bold text-white">{c.nome_estabelecimento}</p>
-                          <p className="text-xs text-zinc-400">
-                            Expira em: {(c.vencimento || c.trial_fim) ? new Date(c.vencimento ?? c.trial_fim).toLocaleDateString('pt-BR') : '—'}
-                          </p>
-                        </div>
-                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${c.status === 'ativo' ? 'bg-emerald-900 text-emerald-400' : 'bg-red-900 text-red-400'}`}>
-                          {c.status}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              </div>
-            </div>
-          </div>
+          {activeTab === 'dashboard' && (
+            <AdminDashboard
+              token={token}
+              onAuthError={handleAuthError}
+              stats={stats}
+              onOpenCliente={(t) => {
+                setClientesSubTab('lista');
+                setSelectedTenantId(null);
+                setSelectedTenant(null);
+                setClientesFocus({ ...t, nonce: Date.now() });
+                setActiveTab('clientes');
+              }}
+              onGoClientes={() => { setClientesSubTab('lista'); setSelectedTenantId(null); setSelectedTenant(null); setActiveTab('clientes'); }}
+              onGoGestao={() => setActiveTab('gestao')}
+              onGoSolicitacoes={() => { setClientesSubTab('solicitacoes'); setSelectedTenantId(null); setSelectedTenant(null); setActiveTab('clientes'); }}
+            />
+          )}
 
           <div className={activeTab !== 'clientes' ? 'hidden' : ''}>
           {renderClientesContent()}
@@ -3004,126 +2817,8 @@ const handleUpdateSenha = async (e: React.FormEvent) => {
             {renderSuporteContent()}
           </div>
 
-          <div className={activeTab !== 'financeiro' ? 'hidden' : ''}>
-          <div className="min-w-0 space-y-4 sm:space-y-5 2xl:space-y-8">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-4 md:gap-5 min-w-0">
-                <Card className="min-w-0 bg-zinc-900 p-4 text-white sm:p-5 md:p-6">
-                  <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1">MRR (Mensal)</p>
-                  <h3 className="text-3xl font-black">R$ {(financeiro?.mrr || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-                </Card>
-                <Card className="min-w-0 p-4 sm:p-5 md:p-6">
-                  <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1">ARR (Anual)</p>
-                  <h3 className="text-3xl font-black text-white">R$ {(financeiro?.arr || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-                </Card>
-                <Card className="min-w-0 p-4 sm:p-5 md:p-6">
-                  <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1">Clientes Pagantes</p>
-                  <h3 className="text-3xl font-black text-white">{financeiro?.clientes_pagantes || 0}</h3>
-                </Card>
-                <Card className="min-w-0 p-4 sm:p-5 md:p-6 sm:col-span-2 md:col-span-1">
-                  <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1">Ticket Médio</p>
-                  <h3 className="text-3xl font-black text-white">R$ {(financeiro?.ticket_medio || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-                </Card>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 min-w-0 xl:grid-cols-3 xl:gap-6 2xl:gap-8">
-                <Card className="min-w-0 p-4 sm:p-5 md:p-6 xl:col-span-2">
-                  <h3 className="mb-4 flex items-center gap-2 font-bold text-white sm:mb-6"><Activity size={18} /> Faturamento (Últimos 6 meses)</h3>
-                  <div className="flex h-56 sm:h-64 min-w-0 items-end gap-2 overflow-x-auto overflow-y-hidden px-2 sm:gap-4 sm:px-4 md:overflow-visible">
-                    {financeiro?.faturamento_mensal?.map((m: any) => (
-                      <div key={m.mes} className="flex min-w-[2.75rem] shrink-0 flex-col items-center gap-2 group sm:min-w-0 sm:flex-1">
-                        <div className="w-full bg-zinc-800 rounded-t-xl relative overflow-hidden flex items-end" style={{ height: '100%' }}>
-                          <motion.div 
-                            initial={{ height: 0 }}
-                            animate={{ height: `${(m.total / Math.max(...financeiro.faturamento_mensal.map((x: any) => x.total))) * 100}%` }}
-                            className="w-full bg-zinc-900 group-hover:bg-emerald-9000 transition-colors"
-                          />
-                          <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 text-white text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap">
-                            R$ {m.total.toLocaleString('pt-BR')}
-                          </div>
-                        </div>
-                        <span className="text-[10px] font-bold text-zinc-400 uppercase">{m.mes}</span>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-
-                <Card className="min-w-0 p-4 sm:p-5 md:p-6">
-                  <h3 className="mb-4 flex items-center gap-2 font-bold text-white sm:mb-6"><Calendar size={18} /> Próximos Vencimentos</h3>
-                  <div className="max-h-[min(50vh,24rem)] space-y-3 overflow-y-auto overscroll-contain pr-1 sm:space-y-4 sm:pr-2">
-                    {financeiro?.proximos_vencimentos?.map((v: any) => (
-                      <div key={v.nome_estabelecimento} className="p-4 bg-zinc-800 rounded-2xl border border-zinc-800">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <p className="font-bold text-white text-sm">{v.nome_estabelecimento}</p>
-                            <p className="text-[10px] text-zinc-400 uppercase font-bold">{v.plano} • R$ {v.valor_plano.toLocaleString('pt-BR')}</p>
-                          </div>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${v.dias <= 0 ? 'bg-red-900 text-red-400' : v.dias <= 3 ? 'bg-amber-900 text-amber-400' : 'bg-emerald-900 text-emerald-400'}`}>
-                            {v.dias <= 0 ? 'Vencido' : `Em ${v.dias}d`}
-                          </span>
-                        </div>
-                        <div className="flex gap-2 mt-3">
-                          <button 
-                            onClick={() => {
-                              const cliente = clientes.find(c => c.nome_estabelecimento === v.nome_estabelecimento);
-                              if (cliente) openEditPlano(cliente);
-                            }}
-                            className="flex-1 py-2 bg-zinc-900 text-white rounded-lg text-xs font-bold hover:bg-zinc-800 transition-colors"
-                          >
-                            Renovar
-                          </button>
-                          <button 
-                            onClick={() => {
-                              const text = `Olá, sua licença do Pratory vence em ${new Date(v.vencimento).toLocaleDateString()}. Deseja renovar?`;
-                              window.open(`https://wa.me/${v.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`, '_blank');
-                            }}
-                            className="p-2 bg-emerald-900 text-emerald-400 rounded-lg hover:bg-emerald-800 transition-colors"
-                          >
-                            <Smartphone size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              </div>
-
-              <Card className="p-4 sm:p-6 min-w-0">
-                <h3 className="font-bold text-white mb-4 sm:mb-6 flex items-center gap-2"><Users size={18} /> Todos os Clientes Pagantes</h3>
-                <div className="overflow-x-auto -mx-1 px-1">
-                  <table className="w-full min-w-[640px] text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-zinc-800">
-                        <th className="py-3 sm:py-4 pr-4 text-xs font-bold text-zinc-400 uppercase tracking-widest">Cliente</th>
-                        <th className="py-3 sm:py-4 pr-4 text-xs font-bold text-zinc-400 uppercase tracking-widest">Plano</th>
-                        <th className="py-3 sm:py-4 pr-4 text-xs font-bold text-zinc-400 uppercase tracking-widest">Valor</th>
-                        <th className="py-3 sm:py-4 pr-4 text-xs font-bold text-zinc-400 uppercase tracking-widest">Vencimento</th>
-                        <th className="py-3 sm:py-4 text-xs font-bold text-zinc-400 uppercase tracking-widest">Último Acesso</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-800">
-                      {financeiro?.todos_pagantes?.map((c: any) => (
-                        <tr key={c.nome_estabelecimento} className="hover:bg-zinc-800/60 transition-colors">
-                          <td className="py-4 font-bold text-white">{c.nome_estabelecimento}</td>
-                          <td className="py-4">
-                            <span className="px-2 py-0.5 bg-zinc-800 text-zinc-300 rounded-full text-[10px] font-bold uppercase">{c.plano}</span>
-                          </td>
-                          <td className="py-4 text-sm text-zinc-300 font-mono">R$ {c.valor_plano.toLocaleString('pt-BR')}</td>
-                          <td className="py-4 text-sm text-zinc-300">{new Date(c.vencimento).toLocaleDateString()}</td>
-                          <td className="py-4 text-xs text-zinc-400">{new Date(c.ultimo_acesso).toLocaleString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
-            </div>
-          </div>
-
           {activeTab === 'gestao' && (
             <AdminGestaoDelivery secao="gestao" token={token} onAuthError={handleAuthError} />
-          )}
-          {activeTab === 'gestao_clientes' && (
-            <AdminGestaoDelivery secao="clientes" token={token} onAuthError={handleAuthError} />
           )}
 
           <div className={activeTab !== 'diagnosticos' ? 'hidden' : ''}>

@@ -994,29 +994,6 @@ export function createAdminRouter() {
     }
   });
 
-  admin.get('/financeiro', async (_req, res) => {
-    try {
-      const TZ = 'America/Sao_Paulo';
-      const [mrr, ativos, proxVenc, fatMensal, pagantes] = await Promise.all([
-        q1("SELECT SUM(valor_plano) as total FROM clientes WHERE status='ativo' AND (trial_fim IS NULL OR trial_fim < NOW())", []),
-        q1("SELECT COUNT(*) as total FROM clientes WHERE status='ativo' AND (trial_fim IS NULL OR trial_fim < NOW())", []),
-        qAll(`SELECT nome_estabelecimento,plano,valor_plano,vencimento,whatsapp,
-               EXTRACT(DAY FROM (vencimento - NOW())) as dias
-               FROM clientes WHERE status='ativo' AND vencimento IS NOT NULL
-               AND vencimento <= NOW() + INTERVAL '7 days' ORDER BY vencimento ASC`, []),
-        qAll(`SELECT TO_CHAR(data_pagamento AT TIME ZONE '${TZ}', 'MM/YYYY') as mes, SUM(valor) as total
-              FROM renovacoes WHERE origem IS DISTINCT FROM 'edicao' GROUP BY mes ORDER BY MIN(data_pagamento) DESC LIMIT 6`, []),
-        qAll("SELECT nome_estabelecimento,plano,valor_plano,vencimento,ultimo_acesso FROM clientes WHERE (trial_fim IS NULL OR trial_fim < NOW()) ORDER BY vencimento ASC", []),
-      ]);
-      res.json({
-        mrr: mrr?.total||0, arr: (mrr?.total||0)*12,
-        clientes_pagantes: ativos?.total||0,
-        ticket_medio: ativos?.total ? (mrr?.total/ativos?.total) : 0,
-        proximos_vencimentos: proxVenc, faturamento_mensal: fatMensal, todos_pagantes: pagantes,
-      });
-    } catch (e: unknown) { sendInternalError(res, 'routes/admin', e); }
-  });
-
   admin.get('/dashboard', async (_req, res) => {
     try {
       const [total, ativos, bloqueados, pendentes, expirados] = await Promise.all([
