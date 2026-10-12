@@ -40,10 +40,12 @@ import {
   Menu,
   FileText,
   LifeBuoy,
+  Building2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Card, Button } from '../components/ui/Card';
 import AdminGestaoDelivery from './AdminGestaoDelivery';
+import '../styles/admin-light.css';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Spinner } from '../components/ui/Spinner';
 import { adminScreenPagePaddingClass } from '../components/ui/screenChrome';
@@ -159,7 +161,7 @@ export default function AdminPanel() {
   >(null);
   const [buscaCliente, setBuscaCliente] = useState('');
   const [token, setToken] = useState<string | null>(localStorage.getItem('admin_token'));
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'clientes' | 'suporte' | 'financeiro' | 'diagnosticos' | 'gestao'>('clientes');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'clientes' | 'suporte' | 'financeiro' | 'diagnosticos' | 'gestao' | 'gestao_clientes'>('clientes');
   const [stats, setStats] = useState<any>(null);
   const [financeiro, setFinanceiro] = useState<any>(null);
   const [solicitacoes, setSolicitacoes] = useState<any[]>([]);
@@ -270,15 +272,9 @@ export default function AdminPanel() {
   );
   const { visibleItems: tenantsVisiveis, hasMore: hasMoreTenants, loadMore: loadMoreTenants, totalCount: totalTenants } = usePaginatedList(tenantsComProblemas, { pageSize: 20 });
 
-  // ── Dark mode admin: classe global em html/body, CSS em index.css ────────────
+  // ── Admin em tema claro (padrão). Remapeamento em styles/admin-light.css ─────
   useEffect(() => {
     document.documentElement.classList.remove('flowpdv-dark');
-    document.documentElement.classList.add('flowpdv-admin-dark');
-    document.body.classList.add('flowpdv-admin-dark');
-    return () => {
-      document.documentElement.classList.remove('flowpdv-admin-dark');
-      document.body.classList.remove('flowpdv-admin-dark');
-    };
   }, []);
 
   useEffect(() => {
@@ -2559,7 +2555,7 @@ const handleUpdateSenha = async (e: React.FormEvent) => {
         {clientesSubTab === 'lista' ? (
           <>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-xl sm:text-2xl font-bold text-white">Clientes</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-white">Clientes Software</h2>
               <div className="relative w-full sm:w-auto sm:min-w-[14rem]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" size={16} />
                 <input
@@ -2649,14 +2645,6 @@ const handleUpdateSenha = async (e: React.FormEvent) => {
                           </td>
                           <td className="px-3 sm:px-6 py-4 text-right align-top">
                             <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2 max-w-[min(100%,280px)] sm:max-w-none ml-auto">
-                              <button
-                                type="button"
-                                onClick={() => openSuporteForTenant(c.id)}
-                                className="px-2 sm:px-3 py-2 min-h-[40px] bg-transparent text-cyan-400 rounded-lg text-[11px] sm:text-xs font-bold hover:bg-cyan-500/20 transition-colors flex items-center gap-1.5"
-                                title="Aba Suporte"
-                              >
-                                <LifeBuoy size={14} /> <span className="hidden sm:inline">Suporte</span><span className="sm:hidden">Sup.</span>
-                              </button>
                               <button
                                 type="button"
                                 onClick={() => { setSelectedTenantId(c.id); setSelectedTenant({ id: c.id, nome_estabelecimento: c.nome_estabelecimento }); }}
@@ -2779,13 +2767,13 @@ const handleUpdateSenha = async (e: React.FormEvent) => {
 
   if (!token) {
     return (
-      <div className="admin-dark min-h-screen flex items-center justify-center bg-zinc-950 p-6">
+      <div className="admin-light min-h-screen flex items-center justify-center bg-[#f7f7f8] p-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
           <div className="text-center mb-8" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-            <div style={{ fontFamily: "'Syne', system-ui, sans-serif", fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#f0f4ff' }}>
-              Flow<span style={{ color: '#06b6d4' }}>PDV</span>
+            <div style={{ fontFamily: "'Syne', system-ui, sans-serif", fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#3f3e3e' }}>
+              Flow<span style={{ color: '#ea1d2c' }}>PDV</span>
             </div>
-            <span style={{ fontSize: '0.6rem', fontWeight: 500, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#64748b', border: '1px solid rgba(255,255,255,0.1)', padding: '3px 10px', borderRadius: 4 }}>
+            <span style={{ fontSize: '0.6rem', fontWeight: 500, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7c7875', border: '1px solid #e5e5e7', padding: '3px 10px', borderRadius: 4 }}>
               RM Tecnologia
             </span>
             <p className="text-zinc-400" style={{ marginTop: 8, fontSize: '0.85rem' }}>Painel Administrativo · Gestão de SaaS</p>
@@ -2822,7 +2810,7 @@ const handleUpdateSenha = async (e: React.FormEvent) => {
   }
 
   return (
-    <div className="admin-dark min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
+    <div className="admin-light min-h-screen bg-[#f7f7f8] text-[#3f3e3e] flex flex-col">
       <AnimatePresence>
         {actionToast && (
           <motion.div
@@ -2848,9 +2836,9 @@ const handleUpdateSenha = async (e: React.FormEvent) => {
           >
             <Menu size={22} />
           </button>
-          <div style={{ fontFamily: "'Syne', system-ui, sans-serif", fontSize: 'clamp(1rem, 2.5vw, 1.35rem)', fontWeight: 800, letterSpacing: '-0.02em', color: '#f4f4f5', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            Flow<span style={{ color: '#22d3ee' }}>PDV</span>
-            <span className="hidden sm:inline" style={{ fontSize: '0.58rem', fontWeight: 500, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#a1a1aa', border: '1px solid rgba(255,255,255,0.15)', padding: '2px 8px', borderRadius: 4, fontFamily: 'DM Sans, system-ui, sans-serif' }}>RM Tecnologia</span>
+          <div style={{ fontFamily: "'Syne', system-ui, sans-serif", fontSize: 'clamp(1rem, 2.5vw, 1.35rem)', fontWeight: 800, letterSpacing: '-0.02em', color: '#3f3e3e', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            Flow<span style={{ color: '#ea1d2c' }}>PDV</span>
+            <span className="hidden sm:inline" style={{ fontSize: '0.58rem', fontWeight: 500, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7c7875', border: '1px solid #e5e5e7', padding: '2px 8px', borderRadius: 4, fontFamily: 'DM Sans, system-ui, sans-serif' }}>RM Tecnologia</span>
           </div>
           <div className="min-w-0 hidden sm:block">
             <h1 className="font-bold leading-none text-white truncate">RM PDV SaaS</h1>
@@ -2897,45 +2885,43 @@ const handleUpdateSenha = async (e: React.FormEvent) => {
               <X size={20} />
             </button>
           </div>
-          <button 
+          <button
+            type="button"
             onClick={() => { setActiveTab('clientes'); setAdminNavOpen(false); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-xl font-medium transition-all ${activeTab === 'clientes' ? 'bg-emerald-600 text-white shadow-lg' : 'text-zinc-300 hover:bg-zinc-800/60'}`}
+            className={`w-full flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-xl font-medium transition-all ${activeTab === 'clientes' ? 'bg-[#ea1d2c] text-[#ffffff] shadow-sm' : 'text-[#4f4c4a] hover:bg-[#f5f5f5]'}`}
           >
-            <Users size={18} /> Clientes
+            <Users size={18} /> Clientes Software
           </button>
           <button
             type="button"
-            onClick={() => { setActiveTab('suporte'); setAdminNavOpen(false); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-xl font-medium transition-all ${activeTab === 'suporte' ? 'bg-emerald-600 text-white shadow-lg' : 'text-zinc-300 hover:bg-zinc-800/60'}`}
+            onClick={() => { setActiveTab('gestao_clientes'); setAdminNavOpen(false); }}
+            className={`w-full flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-xl font-medium transition-all ${activeTab === 'gestao_clientes' ? 'bg-[#ea1d2c] text-[#ffffff] shadow-sm' : 'text-[#4f4c4a] hover:bg-[#f5f5f5]'}`}
           >
-            <LifeBuoy size={18} /> Suporte
+            <Building2 size={18} /> Clientes Gestão Delivery
           </button>
-          <button 
-            onClick={() => { setActiveTab('diagnosticos'); setAdminNavOpen(false); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-xl font-medium transition-all ${activeTab === 'diagnosticos' ? 'bg-emerald-600 text-white shadow-lg' : 'text-zinc-300 hover:bg-zinc-800/60'}`}
+          <button
+            type="button"
+            onClick={() => { setActiveTab('gestao'); setAdminNavOpen(false); }}
+            className={`w-full flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-xl font-medium transition-all ${activeTab === 'gestao' ? 'bg-[#ea1d2c] text-[#ffffff] shadow-sm' : 'text-[#4f4c4a] hover:bg-[#f5f5f5]'}`}
           >
-            <AlertCircle size={18} /> Diagnósticos
+            <Wallet size={18} /> Gestão Delivery
           </button>
-          <button 
+          <button
+            type="button"
             onClick={() => { setActiveTab('financeiro'); setAdminNavOpen(false); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-xl font-medium transition-all ${activeTab === 'financeiro' ? 'bg-emerald-600 text-white shadow-lg' : 'text-zinc-300 hover:bg-zinc-800/60'}`}
+            className={`w-full flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-xl font-medium transition-all ${activeTab === 'financeiro' ? 'bg-[#ea1d2c] text-[#ffffff] shadow-sm' : 'text-[#4f4c4a] hover:bg-[#f5f5f5]'}`}
           >
             <DollarSign size={18} /> Financeiro
             {financeiro?.proximos_vencimentos?.some((v: any) => v.dias <= 3) && (
               <span className="ml-auto w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
             )}
           </button>
-          <button 
+          <button
+            type="button"
             onClick={() => { setActiveTab('dashboard'); setAdminNavOpen(false); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-xl font-medium transition-all ${activeTab === 'dashboard' ? 'bg-emerald-600 text-white shadow-lg' : 'text-zinc-300 hover:bg-zinc-800/60'}`}
+            className={`w-full flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-xl font-medium transition-all ${activeTab === 'dashboard' ? 'bg-[#ea1d2c] text-[#ffffff] shadow-sm' : 'text-[#4f4c4a] hover:bg-[#f5f5f5]'}`}
           >
             <LayoutDashboard size={18} /> Dashboard
-          </button>
-          <button
-            onClick={() => { setActiveTab('gestao'); setAdminNavOpen(false); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-xl font-medium transition-all ${activeTab === 'gestao' ? 'bg-emerald-600 text-white shadow-lg' : 'text-zinc-300 hover:bg-zinc-800/60'}`}
-          >
-            <Wallet size={18} /> Gestão Delivery
           </button>
         </aside>
 
@@ -3134,7 +3120,10 @@ const handleUpdateSenha = async (e: React.FormEvent) => {
           </div>
 
           {activeTab === 'gestao' && (
-            <AdminGestaoDelivery token={token} onAuthError={handleAuthError} />
+            <AdminGestaoDelivery secao="gestao" token={token} onAuthError={handleAuthError} />
+          )}
+          {activeTab === 'gestao_clientes' && (
+            <AdminGestaoDelivery secao="clientes" token={token} onAuthError={handleAuthError} />
           )}
 
           <div className={activeTab !== 'diagnosticos' ? 'hidden' : ''}>

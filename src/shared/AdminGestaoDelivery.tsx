@@ -183,9 +183,9 @@ const Btn = ({ children, onClick, tone = 'ghost', disabled, title }: {
 
 type SubTab = 'ganhos' | 'visao' | 'lancar' | 'cadastro';
 
-export default function AdminGestaoDelivery({ token, onAuthError }: { token: string | null; onAuthError?: () => void }) {
+export default function AdminGestaoDelivery({ token, onAuthError, secao = 'gestao' }: { token: string | null; onAuthError?: () => void; secao?: 'gestao' | 'clientes' }) {
   const api = useApi(token, onAuthError);
-  const [tab, setTab] = useState<SubTab>('ganhos');
+  const [tab, setTab] = useState<SubTab>(secao === 'clientes' ? 'cadastro' : 'lancar');
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [version, setVersion] = useState(0); // incrementa para recarregar tudo após uma mutação
   const bump = () => setVersion((v) => v + 1);
@@ -194,16 +194,18 @@ export default function AdminGestaoDelivery({ token, onAuthError }: { token: str
   }, []);
   const fail = useCallback((e: unknown) => notify(e instanceof Error ? e.message : 'Erro inesperado.', false), [notify]);
 
-  const tabs: { id: SubTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'ganhos', label: 'Ganhos', icon: <Wallet size={15} /> },
-    { id: 'visao', label: 'Delivery · visão geral', icon: <TrendingUp size={15} /> },
+  const todasAbas: { id: SubTab; label: string; icon: React.ReactNode }[] = [
     { id: 'lancar', label: 'Lançar semana', icon: <CalendarCheck size={15} /> },
+    { id: 'visao', label: 'Delivery · visão geral', icon: <TrendingUp size={15} /> },
+    { id: 'ganhos', label: 'Ganhos', icon: <Wallet size={15} /> },
     { id: 'cadastro', label: 'Estabelecimentos', icon: <Building2 size={15} /> },
   ];
+  // "Clientes Gestão Delivery" = só cadastro; "Gestão Delivery" = valores (planilha, visão geral e ganhos)
+  const tabs = todasAbas.filter((t) => (secao === 'clientes' ? t.id === 'cadastro' : t.id !== 'cadastro'));
 
   return (
     <div className="min-w-0 space-y-4 rounded-2xl bg-[#f7f7f8] p-3 text-[#3f3e3e] [color-scheme:light] sm:p-5">
-      <div className="flex gap-1.5 overflow-x-auto pb-1">
+      <div className={`flex gap-1.5 overflow-x-auto pb-1 ${tabs.length < 2 ? 'hidden' : ''}`}>
         {tabs.map((t) => (
           <button key={t.id} type="button" onClick={() => setTab(t.id)}
             className={`flex min-h-[40px] shrink-0 items-center gap-2 rounded-xl px-4 text-sm font-bold transition-colors ${
@@ -643,7 +645,7 @@ function LancarSemana({ api, version, notify, fail, bump }: Shared) {
       </Card>
 
       {itens.length === 0 ? (
-        <Card className="p-8 text-center text-sm text-[#7c7875]">Cadastre um estabelecimento na aba “Estabelecimentos” para começar.</Card>
+        <Card className="p-8 text-center text-sm text-[#7c7875]">Cadastre um estabelecimento em “Clientes Gestão Delivery” para começar.</Card>
       ) : (
         <div className="space-y-3">
           {itens.map((i) => {
